@@ -9,6 +9,8 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+const demo = require("./demo");
+app.use(demo);
 
 // ─── LOGS ─────────────────────────────────────────────────────
 
