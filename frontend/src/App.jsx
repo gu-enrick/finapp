@@ -47,6 +47,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+    {import.meta.env.VITE_DEMO_MODE === "true" && (
+      <div className="bg-amber-500 text-white text-xs text-center py-2 px-4 font-medium">
+      🔒 Modo demonstração — alterações não são salvas. Clone o repositório para uso pessoal.
+      </div>
+      )}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
           <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">finapp</span>
