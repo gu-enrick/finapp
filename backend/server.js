@@ -7,7 +7,13 @@ const pool = require("./database");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app",
+    /\.vercel\.app$/
+  ]
+}));
 app.use(express.json());
 const demo = require("./demo");
 app.use(demo);
