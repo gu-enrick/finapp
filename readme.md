@@ -2,7 +2,7 @@
 
 Aplicação web de finanças pessoais para uso local ou em produção. Desenvolvida do zero com foco em controle de gastos, entradas, metas e relatórios.
 
-**Demo ao vivo:** [finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app](https://finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app)
+**Demo ao vivo:** [FinApp.](https://finapp-mb9tmn603-gustavo-enrick-s-projects.vercel.app/)
 
 > ⚠️ A versão de demonstração roda em modo somente leitura — alterações não são salvas. Para uso pessoal com persistência real, clone e rode localmente.
 
