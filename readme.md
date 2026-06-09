@@ -1,6 +1,12 @@
 # finapp
 
-Aplicação web de finanças pessoais para uso local. Desenvolvida do zero com foco em controle de gastos, entradas, metas e relatórios.
+Aplicação web de finanças pessoais para uso local ou em produção. Desenvolvida do zero com foco em controle de gastos, entradas, metas e relatórios.
+
+**Demo ao vivo:** [finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app](https://finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app)
+
+> ⚠️ A versão de demonstração roda em modo somente leitura — alterações não são salvas. Para uso pessoal com persistência real, clone e rode localmente.
+
+> 💻 Melhor visualizado em desktop. Suporte mobile ainda não implementado.
 
 ![Stack](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Stack](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)
@@ -12,13 +18,13 @@ Aplicação web de finanças pessoais para uso local. Desenvolvida do zero com f
 - Registro de transações (gastos e entradas) com categoria, data e descrição
 - CRUD completo com busca e filtros por período, tipo e categoria
 - Transações recorrentes (semanal, mensal, anual) com geração de ocorrências previstas e confirmação manual
-- Relatórios com métricas: saldo, média, mediana, maior categoria, evolução diária
-- Comparativo mês a mês com variação percentual
+- Relatórios com métricas: saldo, média, mediana, maior categoria, evolução por período
+- Comparativo mês a mês com variação percentual navegável via carrossel
 - Projeção dos próximos 3 meses baseada na média histórica
-- Metas financeiras: economia mensal, limite por categoria e saldo mínimo
+- Metas financeiras: economia mensal, limite por categoria e saldo mínimo com barra de progresso
 - Exportação de transações em CSV
-- Tema escuro/claro com persistência
-- Atalhos de teclado para navegação (`1`-`6`, `N`, `D`)
+- Tema escuro/claro com persistência via localStorage
+- Atalhos de teclado: `1`–`6` para navegação, `N` nova transação, `D` alternar tema
 - Categorias customizáveis com cores
 
 ## Stack
@@ -27,26 +33,50 @@ Aplicação web de finanças pessoais para uso local. Desenvolvida do zero com f
 |----------|------------|
 | Frontend | React + Vite + Tailwind CSS + Recharts |
 | Backend  | Node.js + Express + Zod |
-| Banco    | PostgreSQL (local) |
+| Banco    | PostgreSQL (local) ou Neon (produção) |
+| Deploy   | Vercel (frontend) + Render (backend) |
 
 ### Decisões técnicas
 
-- **PostgreSQL local** em vez de solução cloud — o app é de uso pessoal, sem necessidade de infraestrutura externa. Em testes de carga com k6, o setup aguentou ~16.000 usuários virtuais simultâneos com 0% de falha.
-- **Sem autenticação** — decisão intencional para uso local. O backend escuta apenas em `localhost`, sem exposição externa.
-- **Zod para validação** — validação de schema no backend com erros padronizados e descritivos.
-- **Transações previstas** — recorrências geram ocorrências com `is_confirmed=false`, separadas visualmente das confirmadas e sem impacto nos relatórios até confirmação manual.
+**PostgreSQL em vez de SQLite**
+SQLite foi usado inicialmente pelo zero de configuração. A migração para PostgreSQL foi motivada por testes de carga que evidenciaram limitação crítica de concorrência no SQLite: sob carga simultânea, ele serializa todas as operações de escrita, causando fila e degradação de resposta. O PostgreSQL, com suporte nativo a concorrência e connection pooling, sustentou carga 20x maior com zero falhas nos mesmos testes.
+
+**Sem autenticação na versão local**
+Decisão intencional para uso pessoal local. O backend escuta apenas em `localhost`, sem exposição externa. A análise de risco considerou que os dados (finanças pessoais) têm baixa sensibilidade e o contexto é de uso único em rede privada — adicionar autenticação seria overengineering sem benefício real.
+
+**Zod para validação**
+Validação de schema no backend com erros padronizados e descritivos. Previne inserção de dados malformados e centraliza as regras de negócio antes de qualquer operação no banco.
+
+**Transações previstas**
+Recorrências geram ocorrências com `is_confirmed = false`, separadas visualmente das confirmadas e excluídas dos cálculos de relatório até confirmação manual. Permite planejamento sem distorcer o histórico real.
+
+**Modo demo em produção**
+Middleware no backend intercepta todas as requisições de escrita (POST, PUT, PATCH, DELETE) e retorna `{ ok: true }` sem persistir nada. O banco de demonstração contém 12 meses de dados fictícios com variância realista baseada no perfil de um trabalhador CLT brasileiro.
+
+## Testes de carga
+
+Realizados com [k6](https://k6.io) em hardware local (AMD Ryzen 5 3500U, 12GB RAM) comparando SQLite e PostgreSQL sob carga crescente de 100 até 6.400 usuários virtuais simultâneos.
+
+| Banco      | VUs sem falha | Throughput  | Latência p95 | Taxa de falha em 20k VUs |
+|------------|---------------|-------------|--------------|--------------------------|
+| SQLite     | ~800          | 410 req/s   | 3,4s         | ~36%                     |
+| PostgreSQL | ~16.000       | 2.226 req/s | 5,3s         | 0%                        |
+
+O gargalo do SQLite é estrutural: por ser single-writer, todas as requisições de escrita são serializadas em fila. O PostgreSQL usa um modelo de processos independentes por conexão (process-per-connection), permitindo paralelismo real. O limite de ~16.000 VUs no PostgreSQL foi determinado pelo esgotamento do connection pool (padrão de 10 conexões) — ajustável via `max` no Pool ou uso de um connection pooler externo como PgBouncer.
+
+Testes adicionais com Node.js em modo cluster (8 workers, um por thread lógica do processador) mostraram regressão de performance em vez de ganho: cada worker abre seu próprio pool, multiplicando as conexões simultâneas no PostgreSQL além do suportado. A solução correta em produção de alta escala é um pooler centralizado, não cluster sem coordenação de conexões.
 
 ## Pré-requisitos
 
 - [Node.js](https://nodejs.org) v18+
 - [PostgreSQL](https://www.postgresql.org) v14+
 
-## Como rodar
+## Como rodar localmente
 
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/finapp.git
+git clone https://github.com/gu-enrick/finapp.git
 cd finapp
 ```
 
@@ -69,13 +99,13 @@ DB_PASSWORD=sua_senha
 DB_PORT=5432
 ```
 
-Crie o banco no PostgreSQL:
+Crie o banco:
 
 ```bash
 psql -U postgres -c "CREATE DATABASE finapp;"
 ```
 
-Suba o backend (as tabelas são criadas automaticamente):
+Suba o backend — as tabelas são criadas automaticamente:
 
 ```bash
 node server.js
@@ -96,8 +126,9 @@ Acesse `http://localhost:5173`.
 ```
 finapp/
 ├── backend/
-│   ├── server.js        # API REST + rotas
+│   ├── server.js        # API REST + rotas + validação
 │   ├── database.js      # Conexão e inicialização do banco
+│   ├── demo.js          # Middleware modo demo (bloqueia escrita)
 │   ├── .env.example     # Variáveis de ambiente necessárias
 │   └── package.json
 └── frontend/
@@ -108,13 +139,10 @@ finapp/
             └── api.js   # Cliente HTTP (axios)
 ```
 
-## Testes de carga
+## Deploy em produção
 
-Realizados com [k6](https://k6.io) comparando SQLite e PostgreSQL:
+O projeto está configurado para deploy gratuito com:
 
-| Banco      | VUs (sem falha) | Req/s  | p95     |
-|------------|-----------------|--------|---------|
-| SQLite     | ~800            | 410    | 3.4s    |
-| PostgreSQL | ~16.000         | 2.226  | 5.3s    |
-
-PostgreSQL aguentou 20x mais carga com zero falhas no mesmo hardware.
+- **Frontend:** [Vercel](https://vercel.com) — conecta ao repositório GitHub, build automático
+- **Backend:** [Render](https://render.com) — Web Service com Node.js, free tier
+- **Banco:** [Neon](https://neon.tech) — PostgreSQL serverless, free tier
