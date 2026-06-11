@@ -63,7 +63,10 @@ const transactionSchema = z.object({
   amount:      z.number().positive(),
   description: z.string().max(200).optional().nullable(),
   category_id: z.coerce.number().int().positive().optional().nullable(),
-  date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(d => {
+  const dt = new Date(d);
+  return !isNaN(dt.getTime()) && d === dt.toISOString().slice(0, 10);
+}, { message: "Data inválida" }),
 });
 
 const recurrenceSchema = z.object({
@@ -79,12 +82,19 @@ const recurrenceSchema = z.object({
 
 function generateDates(startDate, frequency, count) {
   const dates = [];
-  const d = new Date(startDate + "T00:00:00");
+  const base = new Date(startDate + "T00:00:00");
   for (let i = 0; i < count; i++) {
-    const next = new Date(d);
-    if (frequency === "weekly")  next.setDate(d.getDate() + i * 7);
-    if (frequency === "monthly") next.setMonth(d.getMonth() + i);
-    if (frequency === "yearly")  next.setFullYear(d.getFullYear() + i);
+    const next = new Date(base);
+    if (frequency === "weekly") {
+      next.setDate(base.getDate() + i * 7);
+    } else if (frequency === "monthly") {
+      next.setDate(1);
+      next.setMonth(base.getMonth() + i);
+      const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      next.setDate(Math.min(base.getDate(), lastDay));
+    } else if (frequency === "yearly") {
+      next.setFullYear(base.getFullYear() + i);
+    }
     dates.push(next.toISOString().slice(0, 10));
   }
   return dates;
@@ -93,17 +103,25 @@ function generateDates(startDate, frequency, count) {
 function generateUntilEndOfYear(startDate, frequency) {
   const endOfYear = new Date(new Date().getFullYear(), 11, 31);
   const dates = [];
-  const d = new Date(startDate + "T00:00:00");
+  const base = new Date(startDate + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   let i = 0;
-  while (true) {
-    const next = new Date(d);
-    if (frequency === "weekly")  next.setDate(d.getDate() + i * 7);
-    if (frequency === "monthly") next.setMonth(d.getMonth() + i);
-    if (frequency === "yearly")  next.setFullYear(d.getFullYear() + i);
+  while (i < 1000) {
+    const next = new Date(base);
+    if (frequency === "weekly") {
+      next.setDate(base.getDate() + i * 7);
+    } else if (frequency === "monthly") {
+      next.setDate(1);
+      next.setMonth(base.getMonth() + i);
+      const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      next.setDate(Math.min(base.getDate(), lastDay));
+    } else if (frequency === "yearly") {
+      next.setFullYear(base.getFullYear() + i);
+    }
     if (next > endOfYear) break;
-    if (next >= new Date()) dates.push(next.toISOString().slice(0, 10));
+    if (next >= today) dates.push(next.toISOString().slice(0, 10));
     i++;
-    if (i > 1000) break;
   }
   return dates;
 }

@@ -14,4 +14,8 @@ For purposes of the foregoing, "Sell" means practicing any or all of the rights 
 
 MIT License
 
+<<<<<<< HEAD
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software...
+=======
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software...
+>>>>>>> b769f78 (fix: overflow de datas e recorrências, e conserto na validação de datas com Zod.)
