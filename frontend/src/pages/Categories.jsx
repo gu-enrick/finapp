@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createCategory, updateCategory, deleteCategory } from "../lib/api";
 import toast from "react-hot-toast";
+import ConfirmModal from "../components/ConfirmModal";
 
 const TYPES = { expense: "Gasto", income: "Entrada", both: "Ambos" };
 const COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#8b5cf6","#ec4899","#94a3b8","#10b981"];
@@ -9,6 +10,9 @@ const emptyForm = { name: "", type: "expense", color: "#6366f1" };
 export default function Categories({ categories, onReload }) {
   const [form, setForm]       = useState(emptyForm);
   const [editing, setEditing] = useState(null);
+  
+  // 1. Estado para controlar o modal de confirmação
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -35,14 +39,21 @@ export default function Categories({ categories, onReload }) {
     setForm({ name: c.name, type: c.type, color: c.color });
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Excluir categoria? As transações vinculadas ficarão sem categoria.")) return;
+  // 2. Apenas abre o modal e guarda o ID da categoria
+  const handleDelete = (id) => {
+    setConfirmModal({ open: true, id });
+  };
+
+  // 3. Executa a exclusão real no banco de dados
+  const handleConfirmDelete = async () => {
     try {
-      await deleteCategory(id);
+      await deleteCategory(confirmModal.id);
       toast.success("Categoria excluída");
       onReload();
     } catch {
       toast.error("Erro ao excluir categoria");
+    } finally {
+      setConfirmModal({ open: false, id: null });
     }
   };
 
@@ -116,6 +127,14 @@ export default function Categories({ categories, onReload }) {
           </tbody>
         </table>
       </div>
+
+      {/* 4. Componente do Modal Inserido Aqui */}
+      <ConfirmModal
+        open={confirmModal.open}
+        message="Excluir categoria? As transações vinculadas ficarão sem categoria."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
     </div>
   );
 }

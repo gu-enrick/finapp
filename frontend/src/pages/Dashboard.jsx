@@ -3,7 +3,11 @@ import { getReport, getTransactions } from "../lib/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const today = () => new Date().toISOString().slice(0, 10);
+const getLocalDate = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const today = () => getLocalDate(new Date());
 const monthStart = () => {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-01`;
@@ -23,6 +27,7 @@ export default function Dashboard({ onNavigate }) {
   const [report, setReport]   = useState(null);
   const [recent, setRecent]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -34,6 +39,8 @@ export default function Dashboard({ onNavigate }) {
         ]);
         setReport(rep);
         setRecent(txs.filter(t => t.is_confirmed).slice(0, 5));
+      } catch {
+        setError("Não foi possível carregar os dados. O backend pode estar iniciando — tente novamente em alguns segundos.");
       } finally {
         setLoading(false);
       }
@@ -44,6 +51,16 @@ export default function Dashboard({ onNavigate }) {
   if (loading) return (
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Carregando...</div>
   );
+  if (error) return (
+  <div className="flex flex-col items-center justify-center py-24 gap-3">
+    <p className="text-red-500 text-sm text-center max-w-sm">{error}</p>
+    <button onClick={() => { setError(null); setLoading(true); }}
+      className="text-xs text-indigo-500 hover:text-indigo-700 underline">
+      Tentar novamente
+    </button>
+  </div>
+);
+
 
   const expenseByCategory = (report?.byCategory || []).filter(c => c.type === "expense" && c.total > 0);
   const monthName = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });

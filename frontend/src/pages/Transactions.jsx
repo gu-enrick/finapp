@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, confirmTransaction } from "../lib/api";
 import TransactionModal from "../components/TransactionModal";
+import ConfirmModal from "../components/ConfirmModal";
 
 const fmt = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtDate = (d) => new Date(d).toLocaleDateString("pt-BR");
@@ -13,6 +14,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,7 +33,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
 
   // Atalho N abre modal
   const isFirst = useRef(true);
-    useEffect(() => {
+  useEffect(() => {
     if (triggerNew === undefined) return;
     setModal({ open: true, initial: null });
   }, [triggerNew]);
@@ -54,20 +56,26 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Excluir esta transação?")) return;
+    setConfirmModal({ open: true, id });
+  };
+
+  const handleConfirmDelete = async () => {
     try {
-      await deleteTransaction(id);
+      await deleteTransaction(confirmModal.id);
       toast.success("Transação excluída");
       load();
     } catch {
       toast.error("Erro ao excluir transação");
+    } finally {
+      setConfirmModal({ open: false, id: null });
     }
   };
 
+  // Efetivação de transações previstas
   const handleConfirm = async (id) => {
     try {
       await confirmTransaction(id);
-      toast.success("Transação confirmada");
+      toast.success("Transação efetivada");
       load();
     } catch {
       toast.error("Erro ao confirmar transação");
@@ -254,6 +262,14 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
           </table>
         )}
       </div>
+
+      {/* Modais de controle inseridos lado a lado */}
+      <ConfirmModal
+        open={confirmModal.open}
+        message="Excluir esta transação?"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
 
       <TransactionModal
         open={modal.open}

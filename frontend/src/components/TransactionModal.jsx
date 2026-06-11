@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 
 function shiftDate(dateStr, unit, amount) {
   const d = new Date(dateStr + "T00:00:00");
@@ -7,6 +8,7 @@ function shiftDate(dateStr, unit, amount) {
   if (unit === "year")  d.setFullYear(d.getFullYear() + amount);
   return d.toISOString().slice(0, 10);
 }
+
 
 export default function TransactionModal({ open, onClose, onSave, categories, initial, lastDate }) {
   const makeEmpty = () => ({ type: "expense", amount: "", description: "", category_id: "", date: lastDate || new Date().toISOString().slice(0, 10) });
@@ -22,7 +24,7 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
   const shift = (unit, amount) => set("date", shiftDate(form.date, unit, amount));
 
   const handleSubmit = () => {
-    if (!form.amount || !form.date) return alert("Valor e data são obrigatórios");
+    if (!form.amount || !form.date) return toast.error("Valor e data são obrigatórios");
     onSave({ ...form, amount: parseFloat(form.amount), category_id: form.category_id || null });
   };
 
