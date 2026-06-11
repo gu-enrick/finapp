@@ -146,3 +146,6 @@ O projeto está configurado para deploy gratuito com:
 - **Frontend:** [Vercel](https://vercel.com) — conecta ao repositório GitHub, build automático
 - **Backend:** [Render](https://render.com) — Web Service com Node.js, free tier
 - **Banco:** [Neon](https://neon.tech) — PostgreSQL serverless, free tier
+
+> **⚠️ Licenciamento e Uso**
+> Este projeto tem seu código aberto para fins de estudo, portfólio e uso pessoal. Ele utiliza a licença MIT com a **Commons Clause**. É estritamente proibido criar cópias comerciais, clones substancialmente idênticos ou revender este software como serviço. Se inspire à vontade, mas construa o seu próprio produto.
