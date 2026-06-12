@@ -15,6 +15,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+  const [sort, setSort] = useState({ field: "date", dir: "desc" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +85,31 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
 
   const setFilter = (k, v) => setFilters(f => ({ ...f, [k]: v }));
 
+  const toggleSort = (field) => {
+  setSort(s => ({ field, dir: s.field === field && s.dir === "desc" ? "asc" : "desc" }));
+};
+
+const filtered = transactions.filter(t =>
+    !search ||
+    (t.description || "").toLowerCase().includes(search.toLowerCase()) ||
+    (t.category_name || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const confirmed = filtered.filter(t => t.is_confirmed);
+  const projected = filtered.filter(t => !t.is_confirmed);
+
+const sortedConfirmed = [...confirmed].sort((a, b) => {
+  if (sort.field === "date") {
+    return sort.dir === "desc"
+      ? new Date(b.date) - new Date(a.date)
+      : new Date(a.date) - new Date(b.date);
+  }
+  if (sort.field === "amount") {
+    return sort.dir === "desc" ? b.amount - a.amount : a.amount - b.amount;
+  }
+  return 0;
+});
+
   const exportCSV = () => {
     const header = ["Data", "Tipo", "Valor", "Categoria", "Descrição", "Status"];
     const rows = filtered.map(t => [
@@ -104,15 +130,6 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
     URL.revokeObjectURL(url);
     toast.success("CSV exportado");
   };
-
-  const filtered = transactions.filter(t =>
-    !search ||
-    (t.description || "").toLowerCase().includes(search.toLowerCase()) ||
-    (t.category_name || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  const confirmed = filtered.filter(t => t.is_confirmed);
-  const projected = filtered.filter(t => !t.is_confirmed);
 
   return (
     <div className="space-y-4">
@@ -190,15 +207,23 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
               <tr>
-                <th className="text-left px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">Data</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  <button onClick={() => toggleSort("date")} className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                    Data {sort.field === "date" ? (sort.dir === "desc" ? "↓" : "↑") : "↕"}
+                  </button>
+                </th>
                 <th className="text-left px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">Descrição</th>
                 <th className="text-left px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">Categoria</th>
-                <th className="text-right px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">Valor</th>
+                <th className="text-right px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  <button onClick={() => toggleSort("amount")} className="flex items-center gap-1 ml-auto hover:text-gray-700 dark:hover:text-gray-200">
+                    Valor {sort.field === "amount" ? (sort.dir === "desc" ? "↓" : "↑") : "↕"}
+                  </button>
+                </th>
                 <th className="px-4 py-3"></th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-              {confirmed.map(t => (
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              {sortedConfirmed.map(t => (
                 <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{fmtDate(t.date)}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{t.description || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>

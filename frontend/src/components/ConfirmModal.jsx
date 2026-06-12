@@ -1,5 +1,22 @@
+import { useEffect } from "react";
+
 export default function ConfirmModal({ open, message, onConfirm, onCancel }) {
+  
+  useEffect(() => {
+    if (!open) return;
+    
+    const handler = (e) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter") onConfirm();
+    };
+    
+    window.addEventListener("keydown", handler);
+    
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onConfirm, onCancel]);
+
   if (!open) return null;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-gray-100 dark:border-gray-800">

@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
+const getLocalToday = () => {
+  const d = new Date();
+  // Subtrai o fuso horário local para "enganar" o toISOString
+  return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
+};
+
 function shiftDate(dateStr, unit, amount) {
   const d = new Date(dateStr + "T00:00:00");
   if (unit === "day")   d.setDate(d.getDate() + amount);
@@ -11,13 +17,26 @@ function shiftDate(dateStr, unit, amount) {
 
 
 export default function TransactionModal({ open, onClose, onSave, categories, initial, lastDate }) {
-  const makeEmpty = () => ({ type: "expense", amount: "", description: "", category_id: "", date: lastDate || new Date().toISOString().slice(0, 10) });
+  const makeEmpty = () => ({ type: "expense", amount: "", description: "", category_id: "", date: lastDate || getLocalToday() });
   const [form, setForm] = useState(makeEmpty());
 
+  // Hook 1
   useEffect(() => {
     setForm(initial ? { ...initial, amount: String(initial.amount) } : makeEmpty());
   }, [initial, open, lastDate]);
 
+  // Hook 2 (MOVIDO PARA CÁ, ANTES DO RETURN)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Enter" && !e.shiftKey) handleSubmit();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, form]); // A dependência do form está aqui para o handleSubmit pegar os dados mais recentes
+
+  // AGORA SIM o return antecipado pode acontecer
   if (!open) return null;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -75,7 +94,7 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
                   {label}
                 </button>
               ))}
-              <button onClick={() => set("date", new Date().toISOString().slice(0, 10))}
+              <button onClick={() => set("date", getLocalToday())}
                 className="px-2.5 py-1 text-xs rounded-md border border-indigo-200 dark:border-indigo-800 text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors">
                 hoje
               </button>
