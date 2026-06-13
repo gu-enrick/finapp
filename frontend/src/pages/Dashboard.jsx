@@ -35,10 +35,10 @@ export default function Dashboard({ onNavigate }) {
       try {
         const [rep, txs] = await Promise.all([
           getReport({ start: monthStart(), end: today() }),
-          getTransactions({ start: monthStart(), end: today() }),
+          getTransactions({ start: monthStart(), end: today(), limit: 50 }),
         ]);
         setReport(rep);
-        setRecent(txs.filter(t => t.is_confirmed).slice(0, 5));
+        setRecent((txs.data || txs).filter(t => t.is_confirmed).slice(0, 5));
       } catch {
         setError("Não foi possível carregar os dados. O backend pode estar iniciando — tente novamente em alguns segundos.");
       } finally {

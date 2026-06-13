@@ -10,11 +10,12 @@ export const createCategory = (data) => api.post("/categories", data).then(r => 
 export const updateCategory = (id, data) => api.put(`/categories/${id}`, data).then(r => r.data);
 export const deleteCategory = (id) => api.delete(`/categories/${id}`).then(r => r.data);
 
-export const getTransactions = (params) => api.get("/transactions", { params }).then(r => r.data);
+
 export const createTransaction = (data) => api.post("/transactions", data).then(r => r.data);
 export const updateTransaction = (id, data) => api.put(`/transactions/${id}`, data).then(r => r.data);
 export const deleteTransaction = (id) => api.delete(`/transactions/${id}`).then(r => r.data);
 export const confirmTransaction = (id) => api.patch(`/transactions/${id}/confirm`).then(r => r.data);
+export const getTransactions = (params) => api.get("/transactions", { params }).then(r => r.data);
 
 export const getRecurrences = () => api.get("/recurrences").then(r => r.data);
 export const createRecurrence = (data) => api.post("/recurrences", data).then(r => r.data);

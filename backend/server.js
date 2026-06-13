@@ -24,7 +24,7 @@ app.use(helmet());
 
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 200,                  // máximo de requisições por IP
+  max: 500,                  // máximo de requisições por IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Muitas requisições — tente novamente em alguns minutos." }
@@ -189,22 +189,41 @@ app.delete("/api/categories/:id", wrap(async (req, res) => {
 // ─── TRANSACTIONS ─────────────────────────────────────────────
 
 app.get("/api/transactions", wrap(async (req, res) => {
-  const { start, end, category_id, type } = req.query;
+  const { start, end, category_id, type, page = 1, limit = 50 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
   let query = `
     SELECT t.*, c.name as category_name, c.color as category_color
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE 1=1
   `;
+  let countQuery = `SELECT COUNT(*) FROM transactions t WHERE 1=1`;
   const params = [];
+  const countParams = [];
   let i = 1;
-  if (start)       { query += ` AND t.date >= $${i++}`;        params.push(start); }
-  if (end)         { query += ` AND t.date <= $${i++}`;        params.push(end); }
-  if (category_id) { query += ` AND t.category_id = $${i++}`; params.push(category_id); }
-  if (type)        { query += ` AND t.type = $${i++}`;         params.push(type); }
-  query += " ORDER BY t.date DESC, t.created_at DESC";
-  const { rows } = await pool.query(query, params);
-  res.json(rows);
+
+  if (start)       { query += ` AND t.date >= $${i}`;        countQuery += ` AND t.date >= $${i}`;        params.push(start);       countParams.push(start);       i++; }
+  if (end)         { query += ` AND t.date <= $${i}`;        countQuery += ` AND t.date <= $${i}`;        params.push(end);         countParams.push(end);         i++; }
+  if (category_id) { query += ` AND t.category_id = $${i}`; countQuery += ` AND t.category_id = $${i}`; params.push(category_id); countParams.push(category_id); i++; }
+  if (type)        { query += ` AND t.type = $${i}`;         countQuery += ` AND t.type = $${i}`;         params.push(type);        countParams.push(type);        i++; }
+
+  query += ` ORDER BY t.date DESC, t.created_at DESC LIMIT $${i} OFFSET $${i+1}`;
+  params.push(parseInt(limit), offset);
+
+  const [{ rows }, { rows: countRows }] = await Promise.all([
+    pool.query(query, params),
+    pool.query(countQuery, countParams),
+  ]);
+
+  const total = parseInt(countRows[0].count);
+  res.json({
+    data: rows,
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    totalPages: Math.ceil(total / parseInt(limit)),
+  });
 }));
 
 app.post("/api/transactions", wrap(async (req, res) => {

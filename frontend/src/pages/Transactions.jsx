@@ -12,25 +12,36 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [modal, setModal]     = useState({ open: false, initial: null });
   const [filters, setFilters] = useState({ start: "", end: "", type: "", category_id: "" });
   const [search, setSearch]   = useState("");
+  const [page, setPage]   = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
   const [sort, setSort] = useState({ field: "date", dir: "desc" });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
-      setTransactions(await getTransactions(params));
-    } catch {
-      setError("Erro ao carregar transações. O backend está rodando?");
-    } finally {
-      setLoading(false);
+  const load = useCallback(async (p = 1) => {
+  setLoading(true);
+  setError(null);
+  try {
+    const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
+    const res = await getTransactions({ ...params, page: p, limit: 50 });
+    if (p === 1) {
+      setTransactions(res.data);
+    } else {
+      setTransactions(prev => [...prev, ...res.data]);
     }
-  }, [filters]);
+    setPage(p);
+    setTotal(res.total);
+    setTotalPages(res.totalPages);
+  } catch {
+    setError("Erro ao carregar transações. O backend está rodando?");
+  } finally {
+    setLoading(false);
+  }
+}, [filters]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(1); }, [load]);
 
   // Atalho N abre modal
   const isFirst = useRef(true);
@@ -278,6 +289,9 @@ const sortedConfirmed = [...confirmed].sort((a, b) => {
                           <button onClick={() => handleDelete(t.id)}
                             className="text-xs text-red-400 hover:text-red-600">Excluir</button>
                         </div>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                        Exibindo {transactions.filter(t => t.is_confirmed).length} de {total} transações
+                        </p>
                       </td>
                     </tr>
                   ))}
@@ -287,7 +301,17 @@ const sortedConfirmed = [...confirmed].sort((a, b) => {
           </table>
         )}
       </div>
-
+      {page < totalPages && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => load(page + 1)}
+            disabled={loading}
+            className="px-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950 disabled:opacity-50"
+          >
+            {loading ? "Carregando..." : `Carregar mais (${total - transactions.length} restantes)`}
+          </button>
+        </div>
+      )}
       {/* Modais de controle inseridos lado a lado */}
       <ConfirmModal
         open={confirmModal.open}
