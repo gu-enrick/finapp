@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import { getAllCategories } from "../lib/api";
 
 const getLocalToday = () => {
   const d = new Date();
@@ -19,13 +20,19 @@ function shiftDate(dateStr, unit, amount) {
 export default function TransactionModal({ open, onClose, onSave, categories, initial, lastDate }) {
   const makeEmpty = () => ({ type: "expense", amount: "", description: "", category_id: "", date: lastDate || getLocalToday() });
   const [form, setForm] = useState(makeEmpty());
+  const [allCategories, setAllCategories] = useState([]);
 
-  // Hook 1
+  useEffect(() => {
+    if (initial?.category_id) {
+      getAllCategories().then(setAllCategories);
+    }
+  }, [initial]);
+
   useEffect(() => {
     setForm(initial ? { ...initial, amount: String(initial.amount) } : makeEmpty());
   }, [initial, open, lastDate]);
 
-  // Hook 2 (MOVIDO PARA CÁ, ANTES DO RETURN)
+  
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -34,9 +41,9 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, form]); // A dependência do form está aqui para o handleSubmit pegar os dados mais recentes
+  }, [open, form]); 
 
-  // AGORA SIM o return antecipado pode acontecer
+  
   if (!open) return null;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -47,7 +54,8 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
     onSave({ ...form, amount: parseFloat(form.amount), category_id: form.category_id || null });
   };
 
-  const filtered = categories.filter(c => c.type === form.type || c.type === "both");
+  const sourceCategories = allCategories.length > 0 ? allCategories : categories;
+  const filtered = sourceCategories.filter(c => c.type === form.type || c.type === "both");
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -107,7 +115,7 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
             <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
               className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
               <option value="">Sem categoria</option>
-              {filtered.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {filtered.map(c => (<option key={c.id} value={c.id}> {c.name}{c.is_active === false ? " (inativa)" : ""}</option>))}
             </select>
           </div>
 

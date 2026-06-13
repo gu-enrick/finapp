@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://finapp-1lzc1a8ed-gustavo-enrick-s-projects.vercel.app",
+    "https://meufinapp.vercel.app/",
     /\.vercel\.app$/
   ]
 }));
@@ -129,7 +129,16 @@ function generateUntilEndOfYear(startDate, frequency) {
 // ─── CATEGORIES ───────────────────────────────────────────────
 
 app.get("/api/categories", wrap(async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM categories ORDER BY name");
+  const { rows } = await pool.query(
+    "SELECT * FROM categories WHERE is_active=TRUE ORDER BY name"
+  );
+  res.json(rows);
+}));
+
+app.get("/api/categories/all", wrap(async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT * FROM categories ORDER BY name"
+  );
   res.json(rows);
 }));
 
@@ -157,7 +166,10 @@ app.put("/api/categories/:id", wrap(async (req, res) => {
 app.delete("/api/categories/:id", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
-  const { rowCount } = await pool.query("DELETE FROM categories WHERE id=$1", [id]);
+  const { rowCount } = await pool.query(
+    "UPDATE categories SET is_active=FALSE WHERE id=$1",
+    [id]
+  );
   if (!rowCount) return err(res, 404, "Categoria não encontrada");
   res.json({ ok: true });
 }));

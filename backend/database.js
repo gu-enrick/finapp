@@ -60,7 +60,8 @@ const init = async () => {
 
   await pool.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT TRUE;`);
   await pool.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurrence_id INTEGER REFERENCES recurrences(id) ON DELETE SET NULL;`);
-
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`);
+  
   await pool.query(`
     INSERT INTO categories (name, type, color) VALUES
       ('Mercado', 'expense', '#ef4444'),
