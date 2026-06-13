@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const { z, ZodError } = require("zod");
 const pool = require("./database");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +19,16 @@ app.use(cors({
 app.use(express.json());
 const demo = require("./demo");
 app.use(demo);
+
+app.use(helmet());
+
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 200,                  // máximo de requisições por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas requisições — tente novamente em alguns minutos." }
+}));
 
 // ─── LOGS ─────────────────────────────────────────────────────
 
