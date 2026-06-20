@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { getCategories } from "./lib/api";
+import { getCategories, getMode, setMode as saveMode, resetLocalData } from "./lib/api";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
 import Recurrences from "./pages/Recurrences";
 import Goals from "./pages/Goals";
+import ConfirmModal from "./components/ConfirmModal";
+import toast from "react-hot-toast";
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",    key: "1" },
@@ -22,36 +24,82 @@ export default function App() {
   const [lastDate, setLastDate]     = useState(new Date().toISOString().slice(0, 10));
   const [dark, setDark]             = useState(() => localStorage.getItem("theme") === "dark");
   const [newTx, setNewTx]           = useState(undefined);
+  const [mode, setModeState]        = useState(getMode());
+  const [reloadKey, setReloadKey]   = useState(0);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const loadCategories = async () => setCategories(await getCategories());
-  useEffect(() => { loadCategories(); }, []);
+  useEffect(() => { loadCategories(); }, [mode, reloadKey]);
 
-  // Tema escuro
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
 
-  // Atalhos de teclado
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
       const nav = NAV.find(n => n.key === e.key);
       if (nav) { setPage(nav.id); return; }
-      if (e.key === "n" || e.key === "N") { setPage("transactions"); setNewTx(t => !t); }
+      if (e.key === "n" || e.key === "N") {
+        if (page === "transactions") setNewTx(t => !t);
+        else setPage("transactions");
+      }
       if (e.key === "d" || e.key === "D") { setDark(d => !d); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [page]);
+
+  const handleModeSwitch = (newMode) => {
+    if (newMode === mode) return;
+    if (newMode === "local") {
+      resetLocalData();
+    }
+    saveMode(newMode);
+    setModeState(newMode);
+    setPage("dashboard");
+    setReloadKey(k => k + 1);
+  };
+
+  const handleResetLocal = () => setConfirmReset(true);
+
+const confirmResetData = () => {
+  resetLocalData();
+  setReloadKey(k => k + 1);
+  setConfirmReset(false);
+  toast.success("Dados locais reiniciados");
+};
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-    {import.meta.env.VITE_DEMO_MODE === "true" && (
-      <div className="bg-amber-500 text-white text-xs text-center py-2 px-4 font-medium">
-      🔒 Modo demonstração — alterações não são salvas. Clone o repositório para uso pessoal.
+      <div className={`text-white text-xs text-center py-2 px-4 font-medium flex items-center justify-center gap-3 flex-wrap ${mode === "local" ? "bg-indigo-600" : "bg-amber-500"}`}>
+        {mode === "local" ? (
+          <>
+            💾 Modo local — seus dados ficam só neste navegador
+            <button onClick={handleResetLocal} className="underline hover:no-underline">Reiniciar dados</button>
+          </>
+        ) : (
+          <>🔒 Modo demonstração — dados fictícios, alterações não são salvas</>
+        )}
+        <div className="flex rounded-full overflow-hidden border border-white/40 ml-2">
+          <button onClick={() => handleModeSwitch("server")}
+            className={`px-2.5 py-0.5 text-[11px] ${mode === "server" ? "bg-white/90 text-gray-800 font-semibold" : "text-white/80"}`}>
+            Demo
+          </button>
+          <button onClick={() => handleModeSwitch("local")}
+            className={`px-2.5 py-0.5 text-[11px] ${mode === "local" ? "bg-white/90 text-gray-800 font-semibold" : "text-white/80"}`}>
+            Local
+          </button>
+        </div>
+        <ConfirmModal
+          open={confirmReset}
+          message="Apagar todos os dados locais e recomeçar do zero?"
+          onConfirm={confirmResetData}
+          onCancel={() => setConfirmReset(false)}
+        />
       </div>
-      )}
+
       <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
           <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">finapp</span>
@@ -76,7 +124,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-5xl mx-auto px-4 py-6" key={reloadKey}>
         {page === "dashboard"    && <Dashboard onNavigate={setPage} />}
         {page === "transactions" && <Transactions categories={categories} lastDate={lastDate} onDateChange={setLastDate} triggerNew={newTx} />}
         {page === "reports"      && <Reports />}
@@ -85,7 +133,6 @@ export default function App() {
         {page === "categories"   && <Categories categories={categories} onReload={loadCategories} />}
       </main>
 
-      {/* Dica de atalhos */}
       <div className="fixed bottom-4 left-4 text-xs text-gray-300 dark:text-gray-700 select-none">
         1-6 navegar · N nova transação · D tema
       </div>
