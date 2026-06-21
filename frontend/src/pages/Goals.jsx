@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getGoals, createGoal, updateGoal, deleteGoal } from "../lib/api";
+import ConfirmModal from "../components/ConfirmModal";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -74,6 +75,7 @@ export default function Goals({ categories }) {
   const [goals, setGoals]     = useState([]);
   const [form, setForm]       = useState(emptyForm);
   const [editing, setEditing] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
   const [period, setPeriod]   = useState(() => {
     const n = new Date();
     return {
@@ -110,11 +112,21 @@ export default function Goals({ categories }) {
     setForm({ kind: g.kind, label: g.label, amount: String(g.amount), category_id: g.category_id || "" });
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Excluir esta meta?")) return;
-    try { await deleteGoal(id); toast.success("Meta excluída"); load(); }
-    catch { toast.error("Erro ao excluir meta"); }
+  const handleDelete = (id) => {
+  setConfirmModal({ open: true, id });
   };
+
+const handleConfirmDelete = async () => {
+  try {
+    await deleteGoal(confirmModal.id);
+    toast.success("Meta excluída");
+    load();
+  } catch {
+    toast.error("Erro ao excluir meta");
+  } finally {
+    setConfirmModal({ open: false, id: null });
+  }
+};
 
   const expenseCategories = categories.filter(c => c.type === "expense" || c.type === "both");
   const savings = goals.filter(g => g.kind === "savings");
@@ -209,6 +221,12 @@ export default function Goals({ categories }) {
           )}
         </div>
       )}
+      <ConfirmModal
+        open={confirmModal.open}
+        message="Excluir esta meta?"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
     </div>
   );
 }

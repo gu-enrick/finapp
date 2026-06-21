@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ConfirmModal from "../components/ConfirmModal";
 import toast from "react-hot-toast";
 import { getRecurrences, createRecurrence, deleteRecurrence, generateRecurrence } from "../lib/api";
 
@@ -10,6 +11,7 @@ export default function Recurrences({ categories }) {
   const [recurrences, setRecurrences] = useState([]);
   const [form, setForm]       = useState(emptyForm);
   const [generating, setGenerating] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   const load = async () => setRecurrences(await getRecurrences());
   useEffect(() => { load(); }, []);
@@ -32,16 +34,21 @@ export default function Recurrences({ categories }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Excluir recorrência e todas as ocorrências previstas?")) return;
-    try {
-      await deleteRecurrence(id);
-      toast.success("Recorrência excluída");
-      load();
-    } catch {
-      toast.error("Erro ao excluir recorrência");
-    }
-  };
+  const handleDelete = (id) => {
+  setConfirmModal({ open: true, id });
+};
+
+const handleConfirmDelete = async () => {
+  try {
+    await deleteRecurrence(confirmModal.id);
+    toast.success("Recorrência excluída");
+    load();
+  } catch {
+    toast.error("Erro ao excluir recorrência");
+  } finally {
+    setConfirmModal({ open: false, id: null });
+  }
+};
 
   const handleGenerate = async (id, opts) => {
     setGenerating(id);
@@ -164,6 +171,12 @@ export default function Recurrences({ categories }) {
           </table>
         )}
       </div>
+      <ConfirmModal
+        open={confirmModal.open}
+        message="Excluir recorrência e todas as ocorrências previstas?"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
     </div>
   );
 }
