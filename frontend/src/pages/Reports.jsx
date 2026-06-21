@@ -2,17 +2,17 @@ import { useState, useEffect } from "react";
 import { getReport } from "../lib/api";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend
+  CartesianGrid, Legend, Cell
 } from "recharts";
 
 const fmt = (n) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
 
 const PERIODS = [
-  { label: "Hoje",         getValue: () => { const d = today(); return { start: d, end: d }; } },
-  { label: "Este mês",     getValue: () => { const n = new Date(); return { start: `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`, end: today() }; } },
-  { label: "Este ano",     getValue: () => ({ start: `${new Date().getFullYear()}-01-01`, end: today() }) },
-  { label: "Personalizado",getValue: () => null },
+  { label: "Hoje",          getValue: () => { const d = today(); return { start: d, end: d }; } },
+  { label: "Este mês",      getValue: () => { const n = new Date(); return { start: `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`, end: today() }; } },
+  { label: "Este ano",      getValue: () => ({ start: `${new Date().getFullYear()}-01-01`, end: today() }) },
+  { label: "Personalizado", getValue: () => null },
 ];
 
 function today() {
@@ -35,10 +35,10 @@ function monthRange(offset) {
 
 function StatCard({ label, value, sub, color = "text-gray-800 dark:text-gray-100" }) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
-      <p className={`text-xl font-semibold ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>}
+    <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800 min-w-0">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">{label}</p>
+      <p className={`text-base sm:text-xl font-semibold ${color} truncate`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{sub}</p>}
     </div>
   );
 }
@@ -78,32 +78,32 @@ function Projection() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
-        <div className="flex items-start justify-between mb-1">
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-1 gap-1">
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200">Projeção dos próximos 3 meses</h2>
           <span className="text-xs text-gray-400 dark:text-gray-500">média dos últimos {confirmed.length} meses</span>
         </div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">Entradas previstas/mês</p>
-            <p className="text-base font-semibold text-green-600">{fmt(avgIncome)}</p>
+            <p className="text-sm sm:text-base font-semibold text-green-600">{fmt(avgIncome)}</p>
           </div>
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">Gastos previstos/mês</p>
-            <p className="text-base font-semibold text-red-500">{fmt(avgExpense)}</p>
+            <p className="text-sm sm:text-base font-semibold text-red-500">{fmt(avgExpense)}</p>
           </div>
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">Saldo projetado/mês</p>
-            <p className={`text-base font-semibold ${avgBalance >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-500"}`}>{fmt(avgBalance)}</p>
+            <p className={`text-sm sm:text-base font-semibold ${avgBalance >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-500"}`}>{fmt(avgBalance)}</p>
           </div>
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={chartData}>
+          <BarChart data={chartData} margin={{ left: -20, right: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v}`} />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
             <Tooltip formatter={v => fmt(v)} />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="Entradas" fill="#22c55e" radius={[4,4,0,0]} opacity={0.85} />
             <Bar dataKey="Gastos"   fill="#ef4444" radius={[4,4,0,0]} opacity={0.85} />
           </BarChart>
@@ -112,15 +112,15 @@ function Projection() {
       </div>
 
       {monthlyComparison.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Entradas vs Gastos por mês</h2>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyComparison}>
+            <BarChart data={monthlyComparison} margin={{ left: -20, right: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v}`} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
               <Tooltip formatter={v => fmt(v)} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="Entradas" fill="#22c55e" radius={[4,4,0,0]} />
               <Bar dataKey="Gastos"   fill="#ef4444" radius={[4,4,0,0]} />
             </BarChart>
@@ -133,23 +133,20 @@ function Projection() {
 
 export default function Reports() {
   const [offset, setOffset]   = useState(0);
-  const [period, setPeriod]   = useState(null); // null = segue carrossel
+  const [period, setPeriod]   = useState(null);
   const [custom, setCustom]   = useState({ start: "", end: "" });
   const [carouselData, setCarouselData] = useState(null);
   const [prevData, setPrevData]         = useState(null);
   const [data, setData]                 = useState(null);
 
-  // Range do carrossel
   const carouselRange = monthRange(offset);
 
-  // Range efetivo dos gráficos: período manual ou carrossel
   const effectiveRange = (() => {
     if (period === null) return carouselRange;
     if (period === 3)    return custom.start ? custom : null;
     return PERIODS[period].getValue();
   })();
 
-  // Carrossel
   useEffect(() => {
     const r     = monthRange(offset);
     const rPrev = monthRange(offset - 1);
@@ -159,7 +156,6 @@ export default function Reports() {
     });
   }, [offset]);
 
-  // Gráficos
   useEffect(() => {
     if (!effectiveRange?.start) return;
     getReport(effectiveRange).then(setData);
@@ -190,40 +186,41 @@ export default function Reports() {
   const incomeDiff  = (prevData?.total_income  > 0 && carouselData) ? ((carouselData.total_income  - prevData.total_income)  / prevData.total_income)  * 100 : null;
   const expenseDiff = (prevData?.total_expense > 0 && carouselData) ? ((carouselData.total_expense - prevData.total_expense) / prevData.total_expense) * 100 : null;
   const balanceDiff = (prevData?.balance !== 0 && carouselData)     ? ((carouselData.balance       - prevData.balance)       / Math.abs(prevData.balance)) * 100 : null;
+
   return (
     <div className="space-y-5">
       <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Relatórios</h1>
 
-      {/* Carrossel — controla os gráficos por padrão */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+      {/* Carrossel */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => { setOffset(o => o - 1); setPeriod(null); }}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors text-lg leading-none">‹</button>
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 capitalize">{carouselRange.label}</h2>
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors text-lg leading-none shrink-0">‹</button>
+          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 capitalize text-center truncate px-2">{carouselRange.label}</h2>
           <button onClick={() => { setOffset(o => o + 1); setPeriod(null); }} disabled={offset >= 0}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors text-lg leading-none disabled:opacity-30">›</button>
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors text-lg leading-none disabled:opacity-30 shrink-0">›</button>
         </div>
 
         {carouselData && (
           <>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="text-center">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Entradas</p>
-                <p className="text-lg font-semibold text-green-600">{fmt(carouselData.total_income)}</p>
+                <p className="text-base sm:text-lg font-semibold text-green-600">{fmt(carouselData.total_income)}</p>
                 {incomeDiff !== null && <p className={`text-xs mt-0.5 ${incomeDiff >= 0 ? "text-green-500" : "text-red-400"}`}>{fmtPct(incomeDiff)} vs anterior</p>}
               </div>
               <div className="text-center">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Gastos</p>
-                <p className="text-lg font-semibold text-red-500">{fmt(carouselData.total_expense)}</p>
+                <p className="text-base sm:text-lg font-semibold text-red-500">{fmt(carouselData.total_expense)}</p>
                 {expenseDiff !== null && <p className={`text-xs mt-0.5 ${expenseDiff <= 0 ? "text-green-500" : "text-red-400"}`}>{fmtPct(expenseDiff)} vs anterior</p>}
               </div>
               <div className="text-center">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Saldo</p>
-                <p className={`text-lg font-semibold ${carouselData.balance >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-500"}`}>{fmt(carouselData.balance)}</p>
+                <p className={`text-base sm:text-lg font-semibold ${carouselData.balance >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-500"}`}>{fmt(carouselData.balance)}</p>
                 {balanceDiff !== null && <p className={`text-xs mt-0.5 ${balanceDiff >= 0 ? "text-green-500" : "text-red-400"}`}>{fmtPct(balanceDiff)} vs anterior</p>}
               </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-50 dark:border-gray-800 flex justify-between text-xs text-gray-400 dark:text-gray-500">
+            <div className="mt-3 pt-3 border-t border-gray-50 dark:border-gray-800 flex flex-col sm:flex-row justify-between gap-1 text-xs text-gray-400 dark:text-gray-500">
               <span>{carouselData.count} transações confirmadas</span>
               <span>Média: {fmt(carouselData.average)}</span>
             </div>
@@ -231,7 +228,7 @@ export default function Reports() {
         )}
       </div>
 
-      {/* Filtros de período — sobrepõem o carrossel */}
+      {/* Filtros de período */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-400 dark:text-gray-500">Detalhar por:</span>
         {PERIODS.map((p, i) => (
@@ -248,16 +245,16 @@ export default function Reports() {
       </div>
 
       {period === 3 && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl p-4 flex gap-3 flex-wrap shadow-sm border border-gray-100 dark:border-gray-800">
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 flex gap-3 flex-wrap shadow-sm border border-gray-100 dark:border-gray-800">
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">De</label>
             <input type="date" value={custom.start} onChange={e => setCustom(c => ({ ...c, start: e.target.value }))}
-              className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+              className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full sm:w-auto" />
           </div>
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Até</label>
             <input type="date" value={custom.end} onChange={e => setCustom(c => ({ ...c, end: e.target.value }))}
-              className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+              className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full sm:w-auto" />
           </div>
         </div>
       )}
@@ -266,7 +263,7 @@ export default function Reports() {
         <div className="text-center text-gray-400 py-12 text-sm">Carregando...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
             <StatCard label="Saldo" value={fmt(data.balance)} color={data.balance >= 0 ? "text-green-600" : "text-red-500"} />
             <StatCard label="Total de entradas" value={fmt(data.total_income)} color="text-green-600" />
             <StatCard label="Total de gastos" value={fmt(data.total_expense)} color="text-red-500" />
@@ -278,15 +275,15 @@ export default function Reports() {
           </div>
 
           {dailyData.length > 1 && dailyData.length <= 60 && (
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
               <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Movimentação diária</h2>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={dailyData}>
+                <BarChart data={dailyData} margin={{ left: -20, right: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={Math.floor(dailyData.length / 10)} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v}`} />
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} interval={Math.floor(dailyData.length / 8)} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
                   <Tooltip formatter={v => fmt(v)} />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Entradas" fill="#22c55e" radius={[2,2,0,0]} />
                   <Bar dataKey="Gastos"   fill="#ef4444" radius={[2,2,0,0]} />
                 </BarChart>
@@ -296,12 +293,12 @@ export default function Reports() {
 
           <div className="grid grid-cols-1 gap-4">
             {expenseByCategory.length > 0 && (
-              <div className="bg-white dark:bg-gray-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+              <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
                 <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Gastos por categoria</h2>
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={expenseByCategory} layout="vertical">
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v}`} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
+                <ResponsiveContainer width="100%" height={Math.max(220, expenseByCategory.length * 32)}>
+                  <BarChart data={expenseByCategory} layout="vertical" margin={{ left: -10, right: 10 }}>
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={75} />
                     <Tooltip formatter={v => fmt(v)} />
                     <Bar dataKey="total" radius={[0,4,4,0]}>
                       {expenseByCategory.map((c, i) => <Cell key={i} fill={c.color || `hsl(${i*40},70%,55%)`} />)}
