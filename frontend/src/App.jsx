@@ -1,14 +1,12 @@
-import useIsMobile from "./hooks/useIsMobile";
 import { useState, useEffect } from "react";
-import { getCategories, getMode, setMode as saveMode, resetLocalData } from "./lib/api";
+import { getCategories } from "./lib/api";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
 import Categories from "./pages/Categories";
 import Recurrences from "./pages/Recurrences";
 import Goals from "./pages/Goals";
-import ConfirmModal from "./components/ConfirmModal";
-import toast from "react-hot-toast";
+import useIsMobile from "./hooks/useIsMobile";
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",    key: "1" },
@@ -20,18 +18,15 @@ const NAV = [
 ];
 
 export default function App() {
+  const isMobile = useIsMobile();
   const [page, setPage]             = useState("dashboard");
   const [categories, setCategories] = useState([]);
   const [lastDate, setLastDate]     = useState(new Date().toISOString().slice(0, 10));
   const [dark, setDark]             = useState(() => localStorage.getItem("theme") === "dark");
   const [newTx, setNewTx]           = useState(undefined);
-  const [mode, setModeState]        = useState(getMode());
-  const [reloadKey, setReloadKey]   = useState(0);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const isMobile = useIsMobile();
 
   const loadCategories = async () => setCategories(await getCategories());
-  useEffect(() => { loadCategories(); }, [mode, reloadKey]);
+  useEffect(() => { loadCategories(); }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -40,7 +35,10 @@ export default function App() {
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      const tag = e.target.tagName;
+      const isEditable = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable;
+      if (isEditable) return;
+      if (e.target.closest("[role='dialog']")) return;
       const nav = NAV.find(n => n.key === e.key);
       if (nav) { setPage(nav.id); return; }
       if (e.key === "n" || e.key === "N") {
@@ -53,81 +51,33 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [page]);
 
-  const handleModeSwitch = (newMode) => {
-    if (newMode === mode) return;
-    if (newMode === "local") {
-      resetLocalData();
-    }
-    saveMode(newMode);
-    setModeState(newMode);
-    setPage("dashboard");
-    setReloadKey(k => k + 1);
-  };
-
-  const handleResetLocal = () => setConfirmReset(true);
-
-const confirmResetData = () => {
-  resetLocalData();
-  setReloadKey(k => k + 1);
-  setConfirmReset(false);
-  toast.success("Dados locais reiniciados");
-};
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      <div className={`text-white text-xs text-center py-2 px-4 font-medium flex items-center justify-center gap-3 flex-wrap ${mode === "local" ? "bg-indigo-600" : "bg-amber-500"}`}>
-        {mode === "local" ? (
-          <>
-            💾 Modo local — seus dados ficam só neste navegador
-            <button onClick={handleResetLocal} className="underline hover:no-underline">Reiniciar dados</button>
-          </>
-        ) : (
-          <>🔒 Modo demonstração — dados fictícios, alterações não são salvas</>
-        )}
-        <div className="flex rounded-full overflow-hidden border border-white/40 ml-2">
-          <button onClick={() => handleModeSwitch("server")}
-            className={`px-2.5 py-0.5 text-[11px] ${mode === "server" ? "bg-white/90 text-gray-800 font-semibold" : "text-white/80"}`}>
-            Demo
-          </button>
-          <button onClick={() => handleModeSwitch("local")}
-            className={`px-2.5 py-0.5 text-[11px] ${mode === "local" ? "bg-white/90 text-gray-800 font-semibold" : "text-white/80"}`}>
-            Local
-          </button>
+      {import.meta.env.VITE_DEMO_MODE === "true" && (
+        <div className="bg-amber-500 text-white text-xs text-center py-2 px-4 font-medium">
+          🔒 Modo demonstração — alterações não são salvas. Clone o repositório para uso pessoal.
         </div>
-        <ConfirmModal
-          open={confirmReset}
-          message="Apagar todos os dados locais e recomeçar do zero?"
-          onConfirm={confirmResetData}
-          onCancel={() => setConfirmReset(false)}
-        />
-      </div>
+      )}
 
       {!isMobile && (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm">
           <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
-            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">
-              finapp
-            </span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">finapp</span>
             <nav className="flex gap-1 items-center">
-              {NAV.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => setPage(n.id)}
+              {NAV.map(n => (
+                <button key={n.id} onClick={() => setPage(n.id)}
                   title={`Atalho: ${n.key}`}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     page === n.id
                       ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
                       : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  }`}
-                >
+                  }`}>
                   {n.label}
                 </button>
               ))}
-              <button
-                onClick={() => setDark((d) => !d)}
+              <button onClick={() => setDark(d => !d)}
                 title="Alternar tema (D)"
-                className="ml-2 p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-base"
-              >
+                className="ml-2 p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-base">
                 {dark ? "☀️" : "🌙"}
               </button>
             </nav>
@@ -138,20 +88,16 @@ const confirmResetData = () => {
       {isMobile && (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm sticky top-0 z-40">
           <div className="px-4 flex items-center justify-between h-12">
-            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base tracking-tight">
-              finapp
-            </span>
-            <button
-              onClick={() => setDark((d) => !d)}
-              className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 text-base"
-            >
+            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base tracking-tight">finapp</span>
+            <button onClick={() => setDark(d => !d)}
+              className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 text-base">
               {dark ? "☀️" : "🌙"}
             </button>
           </div>
         </header>
       )}
 
-      <main className={`max-w-5xl mx-auto px-4 py-6 ${isMobile ? "pb-24" : ""}`} key={reloadKey}>
+      <main className={`max-w-5xl mx-auto px-4 py-6 ${isMobile ? "pb-24" : ""}`}>
         {page === "dashboard"    && <Dashboard onNavigate={setPage} />}
         {page === "transactions" && <Transactions categories={categories} lastDate={lastDate} onDateChange={setLastDate} triggerNew={newTx} />}
         {page === "reports"      && <Reports />}
@@ -160,24 +106,27 @@ const confirmResetData = () => {
         {page === "categories"   && <Categories categories={categories} onReload={loadCategories} />}
       </main>
 
-      <div className="fixed bottom-4 left-4 text-xs text-gray-300 dark:text-gray-700 select-none">
-        1-6 navegar · N nova transação · D tema
-      </div>
       {isMobile && (
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-around py-2 z-40">
-        {NAV.slice(0, 5).map(n => (
-          <button key={n.id} onClick={() => setPage(n.id)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
-              page === n.id ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500"
-            }`}>
-            <span className="text-lg leading-none">
-              {{ dashboard: "🏠", transactions: "💳", reports: "📊", recurrences: "🔁", goals: "🎯" }[n.id]}
-            </span>
-            {n.label}
-          </button>
-        ))}
-      </nav>
-    )}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-around py-2 z-40">
+          {NAV.slice(0, 5).map(n => (
+            <button key={n.id} onClick={() => setPage(n.id)}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
+                page === n.id ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500"
+              }`}>
+              <span className="text-lg leading-none">
+                {{ dashboard: "🏠", transactions: "💳", reports: "📊", recurrences: "🔁", goals: "🎯" }[n.id]}
+              </span>
+              {n.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {!isMobile && (
+        <div className="fixed bottom-4 left-4 text-xs text-gray-300 dark:text-gray-700 select-none">
+          1-6 navegar · N nova transação · D tema
+        </div>
+      )}
     </div>
   );
 }

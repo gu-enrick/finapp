@@ -255,7 +255,6 @@ app.delete("/api/transactions/:id", wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Confirmar transação prevista
 app.patch("/api/transactions/:id/confirm", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
@@ -297,7 +296,6 @@ app.delete("/api/recurrences/:id", wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Gerar N ocorrências como previstas
 app.post("/api/recurrences/:id/generate", wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
@@ -394,7 +392,6 @@ app.get("/api/reports/summary", wrap(async (req, res) => {
 }));
 
 // ─── GOALS ────────────────────────────────────────────────────
-// Cole esse bloco no server.js antes do handler de 404
 
 const goalSchema = z.object({
   kind:        z.enum(["savings", "category_limit", "balance"]),
@@ -415,7 +412,6 @@ app.get("/api/goals", wrap(async (req, res) => {
     ORDER BY g.created_at
   `);
 
-  // Calcula progresso de cada meta no período
   const { rows: [totals] } = await pool.query(`
     SELECT
       COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_income,
@@ -489,6 +485,34 @@ app.delete("/api/goals/:id", wrap(async (req, res) => {
   if (isNaN(id)) return err(res, 400, "ID inválido");
   const { rowCount } = await pool.query("DELETE FROM goals WHERE id=$1", [id]);
   if (!rowCount) return err(res, 404, "Meta não encontrada");
+  res.json({ ok: true });
+}));
+
+app.put("/api/recurrences/:id", wrap(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return err(res, 400, "ID inválido");
+  const data = recurrenceSchema.parse(req.body);
+
+  const { rowCount } = await pool.query(
+    "UPDATE recurrences SET type=$1, amount=$2, description=$3, category_id=$4, frequency=$5, start_date=$6 WHERE id=$7",
+    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.frequency, data.start_date, id]
+  );
+  if (!rowCount) return err(res, 404, "Recorrência não encontrada");
+
+  const { propagate } = req.body;
+  if (propagate) {
+    // Remove previstas antigas e regenera com novos dados
+    await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE", [id]);
+
+    const dates = generateDates(data.start_date, data.frequency, 12);
+    for (const date of dates) {
+      await pool.query(
+        "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, recurrence_id) VALUES ($1,$2,$3,$4,$5,FALSE,$6)",
+        [data.type, data.amount, data.description ?? null, data.category_id ?? null, date, id]
+      );
+    }
+  }
+
   res.json({ ok: true });
 }));
 

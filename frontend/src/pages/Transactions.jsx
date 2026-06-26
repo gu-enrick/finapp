@@ -24,6 +24,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   const load = useCallback(async (p = 1) => {
+    if (p === 1) setTransactions([]);
     setLoading(true);
     setError(null);
     try {
