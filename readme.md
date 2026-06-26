@@ -6,7 +6,7 @@ Aplicação web de finanças pessoais para uso local ou em produção. Desenvolv
 
 > ⚠️ A versão de demonstração roda em modo somente leitura — alterações não são salvas. Para uso pessoal com persistência real, clone e rode localmente.
 
-> 💻 Melhor visualizado em desktop. Suporte mobile ainda não implementado.
+> 💻 Melhor visualizado em desktop. Suporte mobile foi implementado e testado.
 
 ![Stack](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Stack](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)
@@ -26,6 +26,7 @@ Aplicação web de finanças pessoais para uso local ou em produção. Desenvolv
 - Tema escuro/claro com persistência via localStorage
 - Atalhos de teclado: `1`–`6` para navegação, `N` nova transação, `D` alternar tema
 - Categorias customizáveis com cores
+- Agora o projeto conta com suporte a celulares.
 
 ## Stack
 
