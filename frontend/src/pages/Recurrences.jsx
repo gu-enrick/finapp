@@ -4,6 +4,7 @@ import { getRecurrences, createRecurrence, deleteRecurrence, generateRecurrence,
 import ConfirmModal from "../components/ConfirmModal";
 import RecurrenceModal from "../components/RecurrenceModal";
 import useIsMobile from "../hooks/useIsMobile";
+import GenerateModal from "../components/GenerateModal";
 
 const fmt = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const FREQ = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual" };
@@ -17,6 +18,7 @@ export default function Recurrences({ categories }) {
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
   const [editModal, setEditModal]     = useState({ open: false, initial: null });
   const [showForm, setShowForm]       = useState(false);
+  const [generateModal, setGenerateModal] = useState({ open: false, recurrence: null });
 
   const load = async () => setRecurrences(await getRecurrences());
   useEffect(() => { load(); }, []);
@@ -65,15 +67,13 @@ export default function Recurrences({ categories }) {
     }
   };
 
-  const handleGenerate = async (id, opts) => {
-    setGenerating(id);
+  const handleGenerate = async (opts) => {
     try {
-      const result = await generateRecurrence(id, opts);
+      const result = await generateRecurrence(generateModal.recurrence.id, opts);
       toast.success(`${result.generated} ocorrências geradas`);
+      setGenerateModal({ open: false, recurrence: null });
     } catch {
       toast.error("Erro ao gerar ocorrências");
-    } finally {
-      setGenerating(null);
     }
   };
 
@@ -183,10 +183,8 @@ export default function Recurrences({ categories }) {
                   <div className="flex gap-2 mt-2 flex-wrap">
                     <button onClick={() => setEditModal({ open: true, initial: r })}
                       className="text-xs text-indigo-500 hover:text-indigo-700">Editar</button>
-                    <button onClick={() => handleGenerate(r.id, { count: 12 })} disabled={generating === r.id}
-                      className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">Gerar 12x</button>
-                    <button onClick={() => handleGenerate(r.id, { until_end_of_year: true })} disabled={generating === r.id}
-                      className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">Até fim do ano</button>
+                    <button onClick={() => setGenerateModal({ open: true, recurrence: r })}
+                      className="text-xs text-indigo-500 hover:text-indigo-700">Gerar</button>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -240,10 +238,8 @@ export default function Recurrences({ categories }) {
                       <div className="flex gap-2 justify-end flex-wrap">
                         <button onClick={() => setEditModal({ open: true, initial: r })}
                           className="text-xs text-indigo-500 hover:text-indigo-700">Editar</button>
-                        <button onClick={() => handleGenerate(r.id, { count: 12 })} disabled={generating === r.id}
-                          className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">Gerar 12x</button>
-                        <button onClick={() => handleGenerate(r.id, { until_end_of_year: true })} disabled={generating === r.id}
-                          className="text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">Até fim do ano</button>
+                        <button onClick={() => setGenerateModal({ open: true, recurrence: r })}
+                          className="text-xs text-indigo-500 hover:text-indigo-700">Gerar</button>
                         <button onClick={() => handleDelete(r.id)}
                           className="text-xs text-red-400 hover:text-red-600">Excluir</button>
                       </div>
@@ -255,6 +251,12 @@ export default function Recurrences({ categories }) {
           )}
         </div>
       )}
+      <GenerateModal
+        open={generateModal.open}
+        onClose={() => setGenerateModal({ open: false, recurrence: null })}
+        onGenerate={handleGenerate}
+        recurrence={generateModal.recurrence}
+      />
 
       <RecurrenceModal
         open={editModal.open}
