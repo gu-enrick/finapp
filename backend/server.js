@@ -17,8 +17,6 @@ app.use(cors({
   ]
 }));
 app.use(express.json());
-const demo = require("./demo");
-app.use(demo);
 
 app.use(helmet());
 

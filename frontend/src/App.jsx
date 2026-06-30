@@ -9,13 +9,16 @@ import Goals from "./pages/Goals";
 import useIsMobile from "./hooks/useIsMobile";
 
 const NAV = [
-  { id: "dashboard",    label: "Dashboard",    key: "1" },
-  { id: "transactions", label: "Transações",   key: "2" },
-  { id: "reports",      label: "Relatórios",   key: "3" },
-  { id: "recurrences",  label: "Recorrências", key: "4" },
-  { id: "goals",        label: "Metas",        key: "5" },
-  { id: "categories",   label: "Categorias",   key: "6" },
+  { id: "dashboard",    label: "Dashboard",    key: "1", icon: "🏠" },
+  { id: "transactions", label: "Transações",   key: "2", icon: "💳" },
+  { id: "reports",      label: "Relatórios",   key: "3", icon: "📊" },
+  { id: "recurrences",  label: "Recorrências", key: "4", icon: "🔁" },
+  { id: "goals",        label: "Metas",        key: "5", icon: "🎯" },
+  { id: "categories",   label: "Categorias",   key: "6", icon: "🏷️" },
 ];
+
+const MOBILE_PRIMARY = ["dashboard", "transactions", "reports", "goals"];
+const MOBILE_MORE     = ["recurrences", "categories"];
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -24,6 +27,7 @@ export default function App() {
   const [lastDate, setLastDate]     = useState(new Date().toISOString().slice(0, 10));
   const [dark, setDark]             = useState(() => localStorage.getItem("theme") === "dark");
   const [newTx, setNewTx]           = useState(undefined);
+  const [moreOpen, setMoreOpen]     = useState(false);
 
   const loadCategories = async () => setCategories(await getCategories());
   useEffect(() => { loadCategories(); }, []);
@@ -50,6 +54,8 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [page]);
+
+  const goToPage = (id) => { setPage(id); setMoreOpen(false); };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
@@ -106,19 +112,49 @@ export default function App() {
         {page === "categories"   && <Categories categories={categories} onReload={loadCategories} />}
       </main>
 
+      {/* Menu "Mais" — mobile */}
+      {isMobile && moreOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setMoreOpen(false)}>
+          <div onClick={e => e.stopPropagation()}
+            className="bg-white dark:bg-gray-900 w-full rounded-t-2xl p-4 pb-8 space-y-1 animate-in slide-in-from-bottom">
+            <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-3" />
+            {MOBILE_MORE.map(id => {
+              const n = NAV.find(x => x.id === id);
+              return (
+                <button key={id} onClick={() => goToPage(id)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    page === id ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}>
+                  <span className="text-lg">{n.icon}</span>
+                  {n.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-around py-2 z-40">
-          {NAV.slice(0, 5).map(n => (
-            <button key={n.id} onClick={() => setPage(n.id)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
-                page === n.id ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500"
-              }`}>
-              <span className="text-lg leading-none">
-                {{ dashboard: "🏠", transactions: "💳", reports: "📊", recurrences: "🔁", goals: "🎯" }[n.id]}
-              </span>
-              {n.label}
-            </button>
-          ))}
+          {MOBILE_PRIMARY.map(id => {
+            const n = NAV.find(x => x.id === id);
+            return (
+              <button key={id} onClick={() => goToPage(id)}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
+                  page === id ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500"
+                }`}>
+                <span className="text-lg leading-none">{n.icon}</span>
+                {n.label}
+              </button>
+            );
+          })}
+          <button onClick={() => setMoreOpen(true)}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
+              MOBILE_MORE.includes(page) ? "text-indigo-600 dark:text-indigo-400" : "text-gray-400 dark:text-gray-500"
+            }`}>
+            <span className="text-lg leading-none">⋯</span>
+            Mais
+          </button>
         </nav>
       )}
 
