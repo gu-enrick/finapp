@@ -51,7 +51,8 @@ const wrap = (fn) => async (req, res, next) => {
     await fn(req, res, next);
   } catch (e) {
     if (e instanceof ZodError) {
-      return err(res, 400, "Dados inválidos", e.errors.map(x => `${x.path.join(".")}: ${x.message}`));
+  const details = (e.errors || e.issues || []).map(x => `${x.path.join(".")}: ${x.message}`);
+  return err(res, 400, "Dados inválidos", details);
     }
     if (e.code === "23505") return err(res, 400, "Registro duplicado");
     if (e.code === "23503") return err(res, 400, "Referência inválida");
@@ -518,4 +519,8 @@ app.put("/api/recurrences/:id", wrap(async (req, res) => {
 
 app.use((req, res) => err(res, 404, "Rota não encontrada"));
 
-app.listen(PORT, () => console.log(`✅ Backend rodando em http://localhost:${PORT}`));
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => console.log(`✅ Backend rodando em http://localhost:${PORT}`));
+}
+
+module.exports = app;

@@ -1,4 +1,7 @@
-require("dotenv").config();
+const path = require("path");
+const envFile = process.env.NODE_ENV === "test" ? ".env.test" : ".env";
+require("dotenv").config({ path: path.join(__dirname, envFile) });
+
 const { Pool } = require("pg");
 
 const pool = new Pool(
@@ -22,7 +25,8 @@ const init = async () => {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       type TEXT NOT NULL CHECK(type IN ('expense', 'income', 'both')),
-      color TEXT DEFAULT '#6366f1'
+      color TEXT DEFAULT '#6366f1',
+      is_active BOOLEAN DEFAULT TRUE
     );
 
     CREATE TABLE IF NOT EXISTS recurrences (
@@ -58,26 +62,27 @@ const init = async () => {
     );
   `);
 
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`);
   await pool.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT TRUE;`);
   await pool.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurrence_id INTEGER REFERENCES recurrences(id) ON DELETE SET NULL;`);
-  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`);
-  
-  await pool.query(`
-    INSERT INTO categories (name, type, color) VALUES
-      ('Mercado', 'expense', '#ef4444'),
-      ('Streaming', 'expense', '#8b5cf6'),
-      ('E-commerce', 'expense', '#f97316'),
-      ('Água', 'expense', '#06b6d4'),
-      ('Luz', 'expense', '#eab308'),
-      ('Internet', 'expense', '#3b82f6'),
-      ('Telefonia', 'expense', '#ec4899'),
-      ('Salário', 'income', '#22c55e'),
-      ('Freelance', 'income', '#10b981'),
-      ('Outros', 'both', '#94a3b8')
-    ON CONFLICT (name) DO NOTHING;
-  `);
 
-  console.log("✅ Banco inicializado");
+  if (process.env.NODE_ENV !== "test") {
+    await pool.query(`
+      INSERT INTO categories (name, type, color) VALUES
+        ('Mercado', 'expense', '#ef4444'),
+        ('Streaming', 'expense', '#8b5cf6'),
+        ('E-commerce', 'expense', '#f97316'),
+        ('Água', 'expense', '#06b6d4'),
+        ('Luz', 'expense', '#eab308'),
+        ('Internet', 'expense', '#3b82f6'),
+        ('Telefonia', 'expense', '#ec4899'),
+        ('Salário', 'income', '#22c55e'),
+        ('Freelance', 'income', '#10b981'),
+        ('Outros', 'both', '#94a3b8')
+      ON CONFLICT (name) DO NOTHING;
+    `);
+    console.log("✅ Banco inicializado");
+  }
 };
 
 init().catch(console.error);
