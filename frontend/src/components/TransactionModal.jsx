@@ -29,7 +29,11 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
   }, [initial]);
 
   useEffect(() => {
-    setForm(initial ? { ...initial, amount: String(initial.amount) } : makeEmpty());
+    setForm(initial ? {
+      ...initial,
+      amount: String(initial.amount),
+      date: initial.date ? new Date(initial.date).toISOString().slice(0, 10) : makeEmpty().date,
+    } : makeEmpty());
   }, [initial, open, lastDate]);
 
   

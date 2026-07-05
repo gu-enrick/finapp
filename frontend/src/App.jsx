@@ -7,6 +7,9 @@ import Categories from "./pages/Categories";
 import Recurrences from "./pages/Recurrences";
 import Goals from "./pages/Goals";
 import useIsMobile from "./hooks/useIsMobile";
+import Login from "./pages/Login";
+import Profile from "./pages/Profile";
+import supabase from "./lib/supabase";
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",    key: "1", icon: "🏠" },
@@ -15,10 +18,11 @@ const NAV = [
   { id: "recurrences",  label: "Recorrências", key: "4", icon: "🔁" },
   { id: "goals",        label: "Metas",        key: "5", icon: "🎯" },
   { id: "categories",   label: "Categorias",   key: "6", icon: "🏷️" },
+  { id: "profile", label: "Perfil", key: "7", icon: "👤" },
 ];
 
 const MOBILE_PRIMARY = ["dashboard", "transactions", "reports", "goals"];
-const MOBILE_MORE     = ["recurrences", "categories"];
+const MOBILE_MORE    = ["recurrences", "categories", "profile"];
 
 export default function App() {
   const isMobile = useIsMobile();
@@ -28,6 +32,7 @@ export default function App() {
   const [dark, setDark]             = useState(() => localStorage.getItem("theme") === "dark");
   const [newTx, setNewTx]           = useState(undefined);
   const [moreOpen, setMoreOpen]     = useState(false);
+  const [user, setUser]             = useState(undefined); // undefined = carregando, null = demo, objeto = logado
 
   const loadCategories = async () => setCategories(await getCategories());
   useEffect(() => { loadCategories(); }, []);
@@ -36,6 +41,16 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const handler = (e) => {
@@ -56,6 +71,15 @@ export default function App() {
   }, [page]);
 
   const goToPage = (id) => { setPage(id); setMoreOpen(false); };
+
+  if (user === undefined) return (
+  <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+    <span className="text-gray-400 text-sm">Carregando...</span>
+  </div>
+    );
+  if (user === null && import.meta.env.VITE_DEMO_MODE !== "true") {
+      return <Login onLogin={setUser} />;
+    }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
@@ -81,6 +105,14 @@ export default function App() {
                   {n.label}
                 </button>
               ))}
+              
+              {user && (
+                <button onClick={async () => { await supabase.auth.signOut(); setUser(null); }}
+                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors px-2">
+                  Sair
+                </button>
+              )}
+
               <button onClick={() => setDark(d => !d)}
                 title="Alternar tema (D)"
                 className="ml-2 p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-base">
@@ -95,10 +127,20 @@ export default function App() {
         <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm sticky top-0 z-40">
           <div className="px-4 flex items-center justify-between h-12">
             <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base tracking-tight">finapp</span>
-            <button onClick={() => setDark(d => !d)}
-              className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 text-base">
-              {dark ? "☀️" : "🌙"}
-            </button>
+            
+            <div className="flex items-center gap-1">
+              {user && (
+                <button onClick={async () => { await supabase.auth.signOut(); setUser(null); }}
+                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 px-2">
+                  Sair
+                </button>
+              )}
+
+              <button onClick={() => setDark(d => !d)}
+                className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 text-base">
+                {dark ? "☀️" : "🌙"}
+              </button>
+            </div>
           </div>
         </header>
       )}
@@ -110,6 +152,7 @@ export default function App() {
         {page === "recurrences"  && <Recurrences categories={categories} />}
         {page === "goals"        && <Goals categories={categories} />}
         {page === "categories"   && <Categories categories={categories} onReload={loadCategories} />}
+        {page === "profile" && <Profile user={user} onLogout={() => setUser(null)} />}
       </main>
 
       {/* Menu "Mais" — mobile */}
