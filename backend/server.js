@@ -1,28 +1,21 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { z, ZodError } = require("zod");
-const pool = require("./database");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const { z, ZodError } = require("zod");
+const pool = require("./database");
+const { requireAuth } = require("./auth");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://meufinapp.vercel.app/",
-    /\.vercel\.app$/
-  ]
-}));
+app.use(cors({ origin: "*" }));
 app.use(express.json());
-
 app.use(helmet());
-
 app.use(rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 500,                  // máximo de requisições por IP
+  windowMs: 15 * 60 * 1000,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Muitas requisições — tente novamente em alguns minutos." }
@@ -41,6 +34,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// ─── HEALTH ───────────────────────────────────────────────────
+
+app.get("/health", (req, res) => res.json({ ok: true }));
+
 // ─── ERRO PADRONIZADO ─────────────────────────────────────────
 
 const err = (res, status, message, details) =>
@@ -51,8 +48,8 @@ const wrap = (fn) => async (req, res, next) => {
     await fn(req, res, next);
   } catch (e) {
     if (e instanceof ZodError) {
-  const details = (e.errors || e.issues || []).map(x => `${x.path.join(".")}: ${x.message}`);
-  return err(res, 400, "Dados inválidos", details);
+      const details = (e.errors || e.issues || []).map(x => `${x.path.join(".")}: ${x.message}`);
+      return err(res, 400, "Dados inválidos", details);
     }
     if (e.code === "23505") return err(res, 400, "Registro duplicado");
     if (e.code === "23503") return err(res, 400, "Referência inválida");
@@ -74,22 +71,32 @@ const transactionSchema = z.object({
   amount:      z.number().positive(),
   description: z.string().max(200).optional().nullable(),
   category_id: z.coerce.number().int().positive().optional().nullable(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(d => {
-  const dt = new Date(d);
-  return !isNaN(dt.getTime()) && d === dt.toISOString().slice(0, 10);
-}, { message: "Data inválida" }),
+  date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(d => {
+    const dt = new Date(d);
+    return !isNaN(dt.getTime()) && d === dt.toISOString().slice(0, 10);
+  }, { message: "Data inválida" }),
 });
 
 const recurrenceSchema = z.object({
   type:        z.enum(["income", "expense"]),
   amount:      z.number().positive(),
   description: z.string().max(200).optional().nullable(),
-  category_id: z.number().int().positive().optional().nullable(),
+  category_id: z.coerce.number().int().positive().optional().nullable(),
   frequency:   z.enum(["weekly", "monthly", "yearly"]),
-  start_date:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_date:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(d => {
+    const dt = new Date(d);
+    return !isNaN(dt.getTime()) && d === dt.toISOString().slice(0, 10);
+  }, { message: "Data inválida" }),
 });
 
-// ─── HELPER: gerar datas de recorrência ───────────────────────
+const goalSchema = z.object({
+  kind:        z.enum(["savings", "category_limit", "balance"]),
+  label:       z.string().min(1).max(100),
+  amount:      z.number().positive(),
+  category_id: z.coerce.number().int().positive().optional().nullable(),
+});
+
+// ─── HELPERS ──────────────────────────────────────────────────
 
 function generateDates(startDate, frequency, count) {
   const dates = [];
@@ -139,47 +146,49 @@ function generateUntilEndOfYear(startDate, frequency) {
 
 // ─── CATEGORIES ───────────────────────────────────────────────
 
-app.get("/api/categories", wrap(async (req, res) => {
+app.get("/api/categories", requireAuth, wrap(async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT * FROM categories WHERE is_active=TRUE ORDER BY name"
+    "SELECT * FROM categories WHERE is_active=TRUE AND user_id=$1 ORDER BY name",
+    [req.userId]
   );
   res.json(rows);
 }));
 
-app.get("/api/categories/all", wrap(async (req, res) => {
+app.get("/api/categories/all", requireAuth, wrap(async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT * FROM categories ORDER BY name"
+    "SELECT * FROM categories WHERE user_id=$1 ORDER BY name",
+    [req.userId]
   );
   res.json(rows);
 }));
 
-app.post("/api/categories", wrap(async (req, res) => {
+app.post("/api/categories", requireAuth, wrap(async (req, res) => {
   const data = categorySchema.parse(req.body);
   const { rows } = await pool.query(
-    "INSERT INTO categories (name, type, color) VALUES ($1, $2, $3) RETURNING *",
-    [data.name, data.type, data.color]
+    "INSERT INTO categories (name, type, color, user_id) VALUES ($1, $2, $3, $4) RETURNING *",
+    [data.name, data.type, data.color, req.userId]
   );
   res.status(201).json(rows[0]);
 }));
 
-app.put("/api/categories/:id", wrap(async (req, res) => {
+app.put("/api/categories/:id", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
   const data = categorySchema.parse(req.body);
   const { rowCount } = await pool.query(
-    "UPDATE categories SET name=$1, type=$2, color=$3 WHERE id=$4",
-    [data.name, data.type, data.color, id]
+    "UPDATE categories SET name=$1, type=$2, color=$3 WHERE id=$4 AND user_id=$5",
+    [data.name, data.type, data.color, id, req.userId]
   );
   if (!rowCount) return err(res, 404, "Categoria não encontrada");
   res.json({ ok: true });
 }));
 
-app.delete("/api/categories/:id", wrap(async (req, res) => {
+app.delete("/api/categories/:id", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
   const { rowCount } = await pool.query(
-    "UPDATE categories SET is_active=FALSE WHERE id=$1",
-    [id]
+    "UPDATE categories SET is_active=FALSE WHERE id=$1 AND user_id=$2",
+    [id, req.userId]
   );
   if (!rowCount) return err(res, 404, "Categoria não encontrada");
   res.json({ ok: true });
@@ -187,7 +196,7 @@ app.delete("/api/categories/:id", wrap(async (req, res) => {
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────
 
-app.get("/api/transactions", wrap(async (req, res) => {
+app.get("/api/transactions", requireAuth, wrap(async (req, res) => {
   const { start, end, category_id, type, page = 1, limit = 50 } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -195,12 +204,12 @@ app.get("/api/transactions", wrap(async (req, res) => {
     SELECT t.*, c.name as category_name, c.color as category_color
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE 1=1
+    WHERE t.user_id = $1
   `;
-  let countQuery = `SELECT COUNT(*) FROM transactions t WHERE 1=1`;
-  const params = [];
-  const countParams = [];
-  let i = 1;
+  let countQuery = `SELECT COUNT(*) FROM transactions t WHERE t.user_id = $1`;
+  const params = [req.userId];
+  const countParams = [req.userId];
+  let i = 2;
 
   if (start)       { query += ` AND t.date >= $${i}`;        countQuery += ` AND t.date >= $${i}`;        params.push(start);       countParams.push(start);       i++; }
   if (end)         { query += ` AND t.date <= $${i}`;        countQuery += ` AND t.date <= $${i}`;        params.push(end);         countParams.push(end);         i++; }
@@ -215,51 +224,53 @@ app.get("/api/transactions", wrap(async (req, res) => {
     pool.query(countQuery, countParams),
   ]);
 
-  const total = parseInt(countRows[0].count);
   res.json({
     data: rows,
-    total,
+    total: parseInt(countRows[0].count),
     page: parseInt(page),
     limit: parseInt(limit),
-    totalPages: Math.ceil(total / parseInt(limit)),
+    totalPages: Math.ceil(parseInt(countRows[0].count) / parseInt(limit)) || 1,
   });
 }));
 
-app.post("/api/transactions", wrap(async (req, res) => {
+app.post("/api/transactions", requireAuth, wrap(async (req, res) => {
   const data = transactionSchema.parse(req.body);
   const { rows } = await pool.query(
-    "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed) VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id",
-    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.date]
+    "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, user_id) VALUES ($1, $2, $3, $4, $5, TRUE, $6) RETURNING id",
+    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.date, req.userId]
   );
   res.status(201).json({ id: rows[0].id });
 }));
 
-app.put("/api/transactions/:id", wrap(async (req, res) => {
+app.put("/api/transactions/:id", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
   const data = transactionSchema.parse(req.body);
   const { rowCount } = await pool.query(
-    "UPDATE transactions SET type=$1, amount=$2, description=$3, category_id=$4, date=$5 WHERE id=$6",
-    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.date, id]
+    "UPDATE transactions SET type=$1, amount=$2, description=$3, category_id=$4, date=$5 WHERE id=$6 AND user_id=$7",
+    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.date, id, req.userId]
   );
   if (!rowCount) return err(res, 404, "Transação não encontrada");
   res.json({ ok: true });
 }));
 
-app.delete("/api/transactions/:id", wrap(async (req, res) => {
+app.delete("/api/transactions/:id", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
-  const { rowCount } = await pool.query("DELETE FROM transactions WHERE id=$1", [id]);
+  const { rowCount } = await pool.query(
+    "DELETE FROM transactions WHERE id=$1 AND user_id=$2",
+    [id, req.userId]
+  );
   if (!rowCount) return err(res, 404, "Transação não encontrada");
   res.json({ ok: true });
 }));
 
-app.patch("/api/transactions/:id/confirm", wrap(async (req, res) => {
+app.patch("/api/transactions/:id/confirm", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
   const { rowCount } = await pool.query(
-    "UPDATE transactions SET is_confirmed=TRUE WHERE id=$1",
-    [id]
+    "UPDATE transactions SET is_confirmed=TRUE WHERE id=$1 AND user_id=$2",
+    [id, req.userId]
   );
   if (!rowCount) return err(res, 404, "Transação não encontrada");
   res.json({ ok: true });
@@ -267,78 +278,192 @@ app.patch("/api/transactions/:id/confirm", wrap(async (req, res) => {
 
 // ─── RECURRENCES ──────────────────────────────────────────────
 
-app.get("/api/recurrences", wrap(async (req, res) => {
+app.get("/api/recurrences", requireAuth, wrap(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT r.*, c.name as category_name, c.color as category_color
     FROM recurrences r
     LEFT JOIN categories c ON r.category_id = c.id
+    WHERE r.user_id = $1
     ORDER BY r.created_at DESC
-  `);
+  `, [req.userId]);
   res.json(rows);
 }));
 
-app.post("/api/recurrences", wrap(async (req, res) => {
+app.post("/api/recurrences", requireAuth, wrap(async (req, res) => {
   const data = recurrenceSchema.parse(req.body);
   const { rows } = await pool.query(
-    "INSERT INTO recurrences (type, amount, description, category_id, frequency, start_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.frequency, data.start_date]
+    "INSERT INTO recurrences (type, amount, description, category_id, frequency, start_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.frequency, data.start_date, req.userId]
   );
   res.status(201).json(rows[0]);
 }));
 
-app.delete("/api/recurrences/:id", wrap(async (req, res) => {
+app.put("/api/recurrences/:id", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
-  await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE", [id]);
-  const { rowCount } = await pool.query("DELETE FROM recurrences WHERE id=$1", [id]);
+  const data = recurrenceSchema.parse(req.body);
+  const { rowCount } = await pool.query(
+    "UPDATE recurrences SET type=$1, amount=$2, description=$3, category_id=$4, frequency=$5, start_date=$6 WHERE id=$7 AND user_id=$8",
+    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.frequency, data.start_date, id, req.userId]
+  );
+  if (!rowCount) return err(res, 404, "Recorrência não encontrada");
+
+  const { propagate } = req.body;
+  if (propagate) {
+    await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE AND user_id=$2", [id, req.userId]);
+    const dates = generateDates(data.start_date, data.frequency, 12);
+    for (const date of dates) {
+      await pool.query(
+        "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, recurrence_id, user_id) VALUES ($1,$2,$3,$4,$5,FALSE,$6,$7)",
+        [data.type, data.amount, data.description ?? null, data.category_id ?? null, date, id, req.userId]
+      );
+    }
+  }
+  res.json({ ok: true });
+}));
+
+app.delete("/api/recurrences/:id", requireAuth, wrap(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return err(res, 400, "ID inválido");
+  await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE AND user_id=$2", [id, req.userId]);
+  const { rowCount } = await pool.query("DELETE FROM recurrences WHERE id=$1 AND user_id=$2", [id, req.userId]);
   if (!rowCount) return err(res, 404, "Recorrência não encontrada");
   res.json({ ok: true });
 }));
 
-app.post("/api/recurrences/:id/generate", wrap(async (req, res) => {
+app.post("/api/recurrences/:id/generate", requireAuth, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return err(res, 400, "ID inválido");
-
   const { count, until_end_of_year } = req.body;
-
-  const { rows: [rec] } = await pool.query("SELECT * FROM recurrences WHERE id=$1", [id]);
+  const { rows: [rec] } = await pool.query("SELECT * FROM recurrences WHERE id=$1 AND user_id=$2", [id, req.userId]);
   if (!rec) return err(res, 404, "Recorrência não encontrada");
 
   const dates = until_end_of_year
     ? generateUntilEndOfYear(rec.start_date.toISOString().slice(0, 10), rec.frequency)
     : generateDates(rec.start_date.toISOString().slice(0, 10), rec.frequency, count || 12);
 
-  // remove previstas antigas desta recorrência antes de gerar novas
-  await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE", [id]);
+  await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE AND user_id=$2", [id, req.userId]);
 
   const inserted = [];
   for (const date of dates) {
     const { rows } = await pool.query(
-      "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, recurrence_id) VALUES ($1, $2, $3, $4, $5, FALSE, $6) RETURNING id",
-      [rec.type, rec.amount, rec.description, rec.category_id, date, id]
+      "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, recurrence_id, user_id) VALUES ($1,$2,$3,$4,$5,FALSE,$6,$7) RETURNING id",
+      [rec.type, rec.amount, rec.description, rec.category_id, date, id, req.userId]
     );
     inserted.push(rows[0].id);
   }
-
   res.json({ generated: inserted.length, ids: inserted });
+}));
+
+// ─── GOALS ────────────────────────────────────────────────────
+
+app.get("/api/goals", requireAuth, wrap(async (req, res) => {
+  const { start, end } = req.query;
+  const s = start || new Date().toISOString().slice(0, 8) + "01";
+  const e = end   || new Date().toISOString().slice(0, 10);
+
+  const { rows: goals } = await pool.query(`
+    SELECT g.*, c.name as category_name, c.color as category_color
+    FROM goals g
+    LEFT JOIN categories c ON g.category_id = c.id
+    WHERE g.user_id = $1
+    ORDER BY g.created_at
+  `, [req.userId]);
+
+  const { rows: [totals] } = await pool.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_income,
+      COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_expense
+    FROM transactions WHERE user_id=$1 AND date BETWEEN $2 AND $3
+  `, [req.userId, s, e]);
+
+  const { rows: byCategory } = await pool.query(`
+    SELECT t.category_id,
+      SUM(t.amount) FILTER (WHERE t.type='expense' AND t.is_confirmed=TRUE) as expense,
+      SUM(t.amount) FILTER (WHERE t.type='income'  AND t.is_confirmed=TRUE) as income
+    FROM transactions t
+    WHERE t.user_id=$1 AND t.date BETWEEN $2 AND $3
+    GROUP BY t.category_id
+  `, [req.userId, s, e]);
+
+  const catMap = {};
+  byCategory.forEach(r => { catMap[r.category_id] = r; });
+
+  const income  = parseFloat(totals.total_income);
+  const expense = parseFloat(totals.total_expense);
+  const balance = income - expense;
+  const savings = income - expense;
+
+  const result = goals.map(g => {
+    let current = 0;
+    const target = parseFloat(g.amount);
+
+    if (g.kind === "savings")        current = Math.max(0, savings);
+    if (g.kind === "balance")        current = Math.max(0, balance);
+    if (g.kind === "category_limit") {
+      const cat = catMap[g.category_id];
+      current = cat ? parseFloat(cat.expense || 0) : 0;
+    }
+
+    const percent  = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+    const exceeded = g.kind === "category_limit" && current > target;
+    return { ...g, current, percent, exceeded };
+  });
+
+  res.json(result);
+}));
+
+app.post("/api/goals", requireAuth, wrap(async (req, res) => {
+  const data = goalSchema.parse(req.body);
+  if (data.kind === "category_limit" && !data.category_id) {
+    return err(res, 400, "category_id é obrigatório para limite por categoria");
+  }
+  const { rows } = await pool.query(
+    "INSERT INTO goals (kind, label, amount, category_id, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    [data.kind, data.label, data.amount, data.category_id ?? null, req.userId]
+  );
+  res.status(201).json(rows[0]);
+}));
+
+app.put("/api/goals/:id", requireAuth, wrap(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return err(res, 400, "ID inválido");
+  const data = goalSchema.parse(req.body);
+  const { rowCount } = await pool.query(
+    "UPDATE goals SET kind=$1, label=$2, amount=$3, category_id=$4 WHERE id=$5 AND user_id=$6",
+    [data.kind, data.label, data.amount, data.category_id ?? null, id, req.userId]
+  );
+  if (!rowCount) return err(res, 404, "Meta não encontrada");
+  res.json({ ok: true });
+}));
+
+app.delete("/api/goals/:id", requireAuth, wrap(async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return err(res, 400, "ID inválido");
+  const { rowCount } = await pool.query(
+    "DELETE FROM goals WHERE id=$1 AND user_id=$2",
+    [id, req.userId]
+  );
+  if (!rowCount) return err(res, 404, "Meta não encontrada");
+  res.json({ ok: true });
 }));
 
 // ─── REPORTS ──────────────────────────────────────────────────
 
-app.get("/api/reports/summary", wrap(async (req, res) => {
+app.get("/api/reports/summary", requireAuth, wrap(async (req, res) => {
   const { start, end } = req.query;
   const s = start || "0001-01-01";
   const e = end   || "9999-12-31";
 
   const { rows: [totals] } = await pool.query(`
     SELECT
-      COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_income,
-      COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_expense,
+      COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=TRUE  THEN amount ELSE 0 END), 0) as total_income,
+      COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=TRUE  THEN amount ELSE 0 END), 0) as total_expense,
       COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=FALSE THEN amount ELSE 0 END), 0) as projected_income,
       COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=FALSE THEN amount ELSE 0 END), 0) as projected_expense,
       COUNT(*) FILTER (WHERE is_confirmed=TRUE) as count
-    FROM transactions WHERE date BETWEEN $1 AND $2
-  `, [s, e]);
+    FROM transactions WHERE user_id=$1 AND date BETWEEN $2 AND $3
+  `, [req.userId, s, e]);
 
   const { rows: byCategory } = await pool.query(`
     SELECT c.name, c.color, t.type,
@@ -347,10 +472,10 @@ app.get("/api/reports/summary", wrap(async (req, res) => {
       COUNT(*) as count
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE t.date BETWEEN $1 AND $2
+    WHERE t.user_id=$1 AND t.date BETWEEN $2 AND $3
     GROUP BY c.name, c.color, t.type
     ORDER BY total DESC NULLS LAST
-  `, [s, e]);
+  `, [req.userId, s, e]);
 
   const { rows: daily } = await pool.query(`
     SELECT date::text,
@@ -358,13 +483,13 @@ app.get("/api/reports/summary", wrap(async (req, res) => {
       COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=TRUE  THEN amount ELSE 0 END), 0) as expense,
       COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=FALSE THEN amount ELSE 0 END), 0) as projected_income,
       COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=FALSE THEN amount ELSE 0 END), 0) as projected_expense
-    FROM transactions WHERE date BETWEEN $1 AND $2
+    FROM transactions WHERE user_id=$1 AND date BETWEEN $2 AND $3
     GROUP BY date ORDER BY date
-  `, [s, e]);
+  `, [req.userId, s, e]);
 
   const { rows: amounts } = await pool.query(
-    "SELECT amount FROM transactions WHERE date BETWEEN $1 AND $2 AND is_confirmed=TRUE ORDER BY amount",
-    [s, e]
+    "SELECT amount FROM transactions WHERE user_id=$1 AND date BETWEEN $2 AND $3 AND is_confirmed=TRUE ORDER BY amount",
+    [req.userId, s, e]
   );
   const vals = amounts.map(r => parseFloat(r.amount));
   const median = vals.length === 0 ? 0
@@ -390,137 +515,12 @@ app.get("/api/reports/summary", wrap(async (req, res) => {
   });
 }));
 
-// ─── GOALS ────────────────────────────────────────────────────
-
-const goalSchema = z.object({
-  kind:        z.enum(["savings", "category_limit", "balance"]),
-  label:       z.string().min(1).max(100),
-  amount:      z.number().positive(),
-  category_id: z.coerce.number().int().positive().optional().nullable(),
-});
-
-app.get("/api/goals", wrap(async (req, res) => {
-  const { start, end } = req.query;
-  const s = start || new Date().toISOString().slice(0, 8) + "01";
-  const e = end   || new Date().toISOString().slice(0, 10);
-
-  const { rows: goals } = await pool.query(`
-    SELECT g.*, c.name as category_name, c.color as category_color
-    FROM goals g
-    LEFT JOIN categories c ON g.category_id = c.id
-    ORDER BY g.created_at
-  `);
-
-  const { rows: [totals] } = await pool.query(`
-    SELECT
-      COALESCE(SUM(CASE WHEN type='income'  AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_income,
-      COALESCE(SUM(CASE WHEN type='expense' AND is_confirmed=TRUE THEN amount ELSE 0 END), 0) as total_expense
-    FROM transactions WHERE date BETWEEN $1 AND $2
-  `, [s, e]);
-
-  const { rows: byCategory } = await pool.query(`
-    SELECT t.category_id,
-      SUM(t.amount) FILTER (WHERE t.type='expense' AND t.is_confirmed=TRUE) as expense,
-      SUM(t.amount) FILTER (WHERE t.type='income'  AND t.is_confirmed=TRUE) as income
-    FROM transactions t
-    WHERE t.date BETWEEN $1 AND $2
-    GROUP BY t.category_id
-  `, [s, e]);
-
-  const catMap = {};
-  byCategory.forEach(r => { catMap[r.category_id] = r; });
-
-  const income  = parseFloat(totals.total_income);
-  const expense = parseFloat(totals.total_expense);
-  const balance = income - expense;
-  const savings = income - expense;
-
-  const result = goals.map(g => {
-    let current = 0;
-    let target  = parseFloat(g.amount);
-
-    if (g.kind === "savings")        current = Math.max(0, savings);
-    if (g.kind === "balance")        current = Math.max(0, balance);
-    if (g.kind === "category_limit") {
-      const cat = catMap[g.category_id];
-      current = cat ? parseFloat(cat.expense || 0) : 0;
-    }
-
-    const percent  = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-    const exceeded = g.kind === "category_limit" && current > target;
-
-    return { ...g, current, percent, exceeded };
-  });
-
-  res.json(result);
-}));
-
-app.post("/api/goals", wrap(async (req, res) => {
-  const data = goalSchema.parse(req.body);
-  if (data.kind === "category_limit" && !data.category_id) {
-    return err(res, 400, "category_id é obrigatório para limite por categoria");
-  }
-  const { rows } = await pool.query(
-    "INSERT INTO goals (kind, label, amount, category_id) VALUES ($1, $2, $3, $4) RETURNING *",
-    [data.kind, data.label, data.amount, data.category_id ?? null]
-  );
-  res.status(201).json(rows[0]);
-}));
-
-app.put("/api/goals/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) return err(res, 400, "ID inválido");
-  const data = goalSchema.parse(req.body);
-  const { rowCount } = await pool.query(
-    "UPDATE goals SET kind=$1, label=$2, amount=$3, category_id=$4 WHERE id=$5",
-    [data.kind, data.label, data.amount, data.category_id ?? null, id]
-  );
-  if (!rowCount) return err(res, 404, "Meta não encontrada");
-  res.json({ ok: true });
-}));
-
-app.delete("/api/goals/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) return err(res, 400, "ID inválido");
-  const { rowCount } = await pool.query("DELETE FROM goals WHERE id=$1", [id]);
-  if (!rowCount) return err(res, 404, "Meta não encontrada");
-  res.json({ ok: true });
-}));
-
-app.put("/api/recurrences/:id", wrap(async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) return err(res, 400, "ID inválido");
-  const data = recurrenceSchema.parse(req.body);
-
-  const { rowCount } = await pool.query(
-    "UPDATE recurrences SET type=$1, amount=$2, description=$3, category_id=$4, frequency=$5, start_date=$6 WHERE id=$7",
-    [data.type, data.amount, data.description ?? null, data.category_id ?? null, data.frequency, data.start_date, id]
-  );
-  if (!rowCount) return err(res, 404, "Recorrência não encontrada");
-
-  const { propagate } = req.body;
-  if (propagate) {
-    // Remove previstas antigas e regenera com novos dados
-    await pool.query("DELETE FROM transactions WHERE recurrence_id=$1 AND is_confirmed=FALSE", [id]);
-
-    const dates = generateDates(data.start_date, data.frequency, 12);
-    for (const date of dates) {
-      await pool.query(
-        "INSERT INTO transactions (type, amount, description, category_id, date, is_confirmed, recurrence_id) VALUES ($1,$2,$3,$4,$5,FALSE,$6)",
-        [data.type, data.amount, data.description ?? null, data.category_id ?? null, date, id]
-      );
-    }
-  }
-
-  res.json({ ok: true });
-}));
-
 // ─── 404 ──────────────────────────────────────────────────────
 
 app.use((req, res) => err(res, 404, "Rota não encontrada"));
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => console.log(`✅ Backend rodando em http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`✅ Backend rodando`));
 }
 
 module.exports = app;
