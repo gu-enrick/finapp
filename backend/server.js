@@ -520,7 +520,7 @@ app.get("/api/reports/summary", requireAuth, wrap(async (req, res) => {
 app.use((req, res) => err(res, 404, "Rota não encontrada"));
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => console.log(`✅ Backend rodando`));
+  app.listen(PORT, () => console.log(`✅ Backend rodando em http://localhost:${PORT}`));
 }
 
 module.exports = app;
