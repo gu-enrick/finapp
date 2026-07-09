@@ -9,13 +9,22 @@ api.interceptors.response.use(
   response => response,
   async error => {
     if (error.response?.status === 401) {
-      await supabase.auth.signOut();
-      window.location.href = "/";
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error("Erro ignorado no signOut:", err);
+      }
+      
+      localStorage.clear(); 
+      sessionStorage.clear();
+
+      if (window.location.pathname !== "/") { 
+        window.location.href = "/";
+      }
     }
     return Promise.reject(error);
   }
 );
-
 api.interceptors.request.use(async (config) => {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.access_token) {

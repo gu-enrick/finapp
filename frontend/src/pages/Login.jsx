@@ -60,6 +60,26 @@ export default function Login({ onLogin }) {
     if (error) setError("Erro ao conectar com Google. Tente novamente.");
   };
 
+  const handleDemo = async () => {
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: "demo@finapp.com",
+        password: "$BN+nT!PL!Rua67",
+      });
+
+      if (error) throw error;
+      onLogin(data.user);
+    } catch (err) {
+      setError("Erro ao entrar no modo demo.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const changeMode = (newMode) => {
     setMode(newMode);
     setError(null);
@@ -176,9 +196,9 @@ export default function Login({ onLogin }) {
 
         {/* Demo */}
         <p className="text-center mt-3">
-          <button onClick={() => onLogin(null)}
-            className="text-xs text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 underline">
-            Continuar como visitante (modo demo)
+          <button type="button" onClick={handleDemo} disabled={loading}
+            className="text-xs text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 underline disabled:opacity-50">
+            {loading ? "Aguarde..." : "Continuar como visitante (modo demo)"}
           </button>
         </p>
       </div>
