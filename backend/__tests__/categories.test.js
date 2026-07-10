@@ -60,6 +60,7 @@ describe("Categories API", () => {
       .send({ name: "Lazer", type: "expense" });
 
     expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Categoria já existe");
   });
 
   test("GET /api/categories retorna apenas categorias ativas", async () => {

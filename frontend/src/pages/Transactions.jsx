@@ -4,6 +4,8 @@ import { getTransactions, createTransaction, updateTransaction, deleteTransactio
 import TransactionModal from "../components/TransactionModal";
 import ConfirmModal from "../components/ConfirmModal";
 import useIsMobile from "../hooks/useIsMobile";
+import PageSkeleton from "../components/PageSkeleton";
+import { getErrorMessage, loadDraft, saveDraft, clearDraft } from "../lib/feedback";
 
 const fmt = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtDate = (d) => new Date(d).toLocaleDateString("pt-BR");
@@ -16,6 +18,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [filters, setFilters] = useState({ start: "", end: "", type: "", category_id: "" });
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
   const [page, setPage]       = useState(1);
   const [total, setTotal]     = useState(0);
@@ -24,6 +27,9 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
   const load = useCallback(async (p = 1) => {
+    const preserveScroll = p > 1 && typeof window !== "undefined";
+    const currentScroll = preserveScroll ? window.scrollY : 0;
+
     if (p === 1) setTransactions([]);
     setLoading(true);
     setError(null);
@@ -35,6 +41,9 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       setPage(p);
       setTotal(res.total);
       setTotalPages(res.totalPages);
+      if (preserveScroll) {
+        requestAnimationFrame(() => window.scrollTo({ top: currentScroll, behavior: "auto" }));
+      }
     } catch {
       setError("Erro ao carregar transações. O backend está rodando?");
     } finally {
@@ -44,6 +53,18 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
 
   useEffect(() => { load(1); }, [load]);
 
+  useEffect(() => {
+    const draft = loadDraft("finvolt:transactions-draft", null);
+    if (draft) {
+      setFilters(draft.filters || { start: "", end: "", type: "", category_id: "" });
+      setSearch(draft.search || "");
+    }
+  }, []);
+
+  useEffect(() => {
+    saveDraft("finvolt:transactions-draft", { filters, search });
+  }, [filters, search]);
+
   const isFirst = useRef(true);
   useEffect(() => {
     if (isFirst.current) { isFirst.current = false; return; }
@@ -51,6 +72,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
   }, [triggerNew]);
 
   const handleSave = async (data) => {
+    setSubmitting(true);
     try {
       if (modal.initial) {
         await updateTransaction(modal.initial.id, data);
@@ -61,9 +83,12 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       }
       onDateChange(data.date);
       setModal({ open: false, initial: null });
+      clearDraft("finvolt:transactions-draft");
       load(1);
-    } catch {
-      toast.error("Erro ao salvar transação");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao salvar transação"));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,8 +99,8 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       await deleteTransaction(confirmModal.id);
       toast.success("Transação excluída");
       load(1);
-    } catch {
-      toast.error("Erro ao excluir transação");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao excluir transação"));
     } finally {
       setConfirmModal({ open: false, id: null });
     }
@@ -86,8 +111,8 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       await confirmTransaction(id);
       toast.success("Transação confirmada");
       load(1);
-    } catch {
-      toast.error("Erro ao confirmar transação");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao confirmar transação"));
     }
   };
 
@@ -139,8 +164,9 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
             </button>
           )}
           <button onClick={() => setModal({ open: true, initial: null })}
-            className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-            + Nova
+            disabled={submitting}
+            className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
+            {submitting ? "Aguarde..." : "+ Nova"}
           </button>
         </div>
       </div>
@@ -209,7 +235,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       {isMobile ? (
         <div className="space-y-2">
           {loading && transactions.length === 0 ? (
-            <div className="text-center text-gray-400 text-sm py-8">Carregando...</div>
+            <PageSkeleton rows={4} />
           ) : confirmed.length === 0 ? (
             <div className="text-center text-gray-400 text-sm py-8 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
               Nenhuma transação encontrada
@@ -275,7 +301,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
         /* ─── DESKTOP/TABLET: tabela ─── */
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden overflow-x-auto">
           {loading && transactions.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">Carregando...</div>
+            <PageSkeleton rows={5} />
           ) : confirmed.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">Nenhuma transação encontrada</div>
           ) : (

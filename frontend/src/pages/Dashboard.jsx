@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getReport, getTransactions } from "../lib/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import PageSkeleton from "../components/PageSkeleton";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const getLocalDate = (date) => {
@@ -49,7 +50,9 @@ export default function Dashboard({ onNavigate }) {
   }, []);
 
   if (loading) return (
-    <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Carregando...</div>
+    <div className="space-y-4">
+      <PageSkeleton rows={4} />
+    </div>
   );
   if (error) return (
   <div className="flex flex-col items-center justify-center py-24 gap-3">

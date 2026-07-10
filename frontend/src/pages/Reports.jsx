@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, Cell
 } from "recharts";
+import PageSkeleton from "../components/PageSkeleton";
 
 const fmt = (n) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
@@ -260,7 +261,7 @@ export default function Reports() {
       )}
 
       {!data ? (
-        <div className="text-center text-gray-400 py-12 text-sm">Carregando...</div>
+        <PageSkeleton rows={4} />
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">

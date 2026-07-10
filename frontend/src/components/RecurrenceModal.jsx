@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { isPositiveNumber, isValidDateString, normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
 
 const emptyForm = {
   type: "expense", amount: "", description: "",
@@ -32,9 +34,12 @@ export default function RecurrenceModal({ open, onClose, onSave, categories, ini
   const filtered = categories.filter(c => c.type === form.type || c.type === "both");
 
   const handleSubmit = () => {
-    if (!form.amount || !form.start_date) return;
+    const description = normalizeText(form.description);
+    if (!isPositiveNumber(form.amount)) return toast.error(VALIDATION_MESSAGES.invalidAmount);
+    if (!isValidDateString(form.start_date)) return toast.error(VALIDATION_MESSAGES.invalidDate);
     onSave({
       ...form,
+      description,
       amount:      parseFloat(form.amount),
       category_id: form.category_id ? parseInt(form.category_id) : null,
       propagate,

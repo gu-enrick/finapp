@@ -8,7 +8,9 @@ import Recurrences from "./pages/Recurrences";
 import Goals from "./pages/Goals";
 import useIsMobile from "./hooks/useIsMobile";
 import Profile from "./pages/Profile";
-import supabase from "./lib/supabase";
+import ConsentScreen from "./pages/ConsentScreen";
+import supabase, { getResetPasswordRedirect } from "./lib/supabase";
+import { isValidEmail, normalizeText, VALIDATION_MESSAGES } from "./lib/validation";
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",    key: "1", icon: "🏠" },
@@ -35,15 +37,29 @@ function AuthScreen({ onLogin }) {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    const cleanedEmail = normalizeText(email);
+    const cleanedPassword = normalizeText(password);
+
+    if (!cleanedEmail || !isValidEmail(cleanedEmail)) {
+      setError(VALIDATION_MESSAGES.invalidEmail);
+      return;
+    }
+
+    if (mode !== "forgot" && cleanedPassword.length < 6) {
+      setError(VALIDATION_MESSAGES.invalidPassword);
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (mode === "login") {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email: cleanedEmail, password: cleanedPassword });
         if (error) throw error;
         onLogin(data.user);
       } else if (mode === "register") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email: cleanedEmail, password: cleanedPassword });
         if (error) throw error;
         if (data.user && !data.user.confirmed_at) {
           setMessage("Confirmação enviada para o seu e-mail. Verifique a caixa de entrada.");
@@ -52,20 +68,35 @@ function AuthScreen({ onLogin }) {
           onLogin(data.user);
         }
       } else if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanedEmail, {
+          redirectTo: getResetPasswordRedirect(),
         });
         if (error) throw error;
         setMessage("Link de recuperação enviado. Verifique seu e-mail.");
       }
     } catch (err) {
+      const rawMessage = err?.message || "";
+      const errorCode = err?.status || err?.code || "";
+
       const messages = {
         "Invalid login credentials": "E-mail ou senha incorretos.",
         "Email not confirmed": "Confirme seu e-mail antes de entrar.",
         "User already registered": "Este e-mail já está cadastrado.",
-        "Password should be at least 6 characters": "A senha precisa ter pelo menos 6 caracteres.",
+        "Password should be at least 6 characters": VALIDATION_MESSAGES.invalidPassword,
       };
-      setError(messages[err.message] || err.message);
+
+      const fallbackMessage =
+        errorCode === "user_not_found" || rawMessage.includes("user_not_found") || rawMessage.includes("User not found")
+          ? "Esse e-mail não está cadastrado neste app. Tente criar uma conta ou usar o mesmo método de login usado antes."
+          : rawMessage.includes("Email not confirmed")
+            ? "Confirme seu e-mail antes de entrar."
+            : rawMessage.includes("Invalid login credentials")
+              ? "E-mail ou senha incorretos."
+              : rawMessage.includes("For security purposes")
+                ? "Não foi possível completar essa ação por segurança. Tente novamente em alguns instantes."
+                : messages[rawMessage] || rawMessage || "Não foi possível concluir a operação. Tente novamente.";
+
+      setError(fallbackMessage);
     } finally {
       setLoading(false);
     }
@@ -110,7 +141,7 @@ function AuthScreen({ onLogin }) {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-3xl tracking-tight">finapp</span>
+          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-3xl tracking-tight">FinVolt</span>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
             {mode === "login" && "Bem-vindo de volta"}
             {mode === "register" && "Crie sua conta"}
@@ -268,6 +299,7 @@ export default function App() {
   const [newTx, setNewTx]           = useState(undefined);
   const [moreOpen, setMoreOpen]     = useState(false);
   const [user, setUser]             = useState(undefined); // undefined = carregando, null = demo, objeto = logado
+  const [consented, setConsented]   = useState(() => localStorage.getItem("finvolt_consent") === "true");
 
   const loadCategories = async () => setCategories(await getCategories());
   useEffect(() => { loadCategories(); }, []);
@@ -306,6 +338,12 @@ export default function App() {
   }, [page]);
 
   const goToPage = (id) => { setPage(id); setMoreOpen(false); };
+  const handleConsent = () => {
+    localStorage.setItem("finvolt_consent", "true");
+    setConsented(true);
+  };
+
+  if (!consented) return <ConsentScreen onAccept={handleConsent} />;
 
   if (user === undefined) return (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
@@ -317,12 +355,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors flex flex-col overflow-x-hidden">
 
       {!isMobile && (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm">
           <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
-            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">finapp</span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg tracking-tight">FinVolt</span>
             <nav className="flex gap-1 items-center">
               {NAV.map(n => (
                 <button key={n.id} onClick={() => setPage(n.id)}
@@ -356,7 +394,7 @@ export default function App() {
       {isMobile && (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm sticky top-0 z-40">
           <div className="px-4 flex items-center justify-between h-12">
-            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base tracking-tight">finapp</span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base tracking-tight">FinVolt</span>
             
             <div className="flex items-center gap-1">
               {user && (
@@ -375,7 +413,10 @@ export default function App() {
         </header>
       )}
 
-      <main className={`max-w-5xl mx-auto px-4 py-6 ${isMobile ? "pb-24" : ""}`}>
+      <main
+        className={`flex-1 w-full max-w-5xl mx-auto px-4 py-6 ${isMobile ? "pb-28" : ""}`}
+        style={isMobile ? { paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" } : undefined}
+      >
         {page === "dashboard"    && <Dashboard onNavigate={setPage} />}
         {page === "transactions" && <Transactions categories={categories} lastDate={lastDate} onDateChange={setLastDate} triggerNew={newTx} />}
         {page === "reports"      && <Reports />}
@@ -408,7 +449,7 @@ export default function App() {
       )}
 
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex justify-around py-2 z-40">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 border-t border-gray-100 dark:border-gray-800 flex justify-around pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] z-40 backdrop-blur">
           {MOBILE_PRIMARY.map(id => {
             const n = NAV.find(x => x.id === id);
             return (

@@ -3,6 +3,9 @@ import toast from "react-hot-toast";
 import { getGoals, createGoal, updateGoal, deleteGoal } from "../lib/api";
 import ConfirmModal from "../components/ConfirmModal";
 import useIsMobile from "../hooks/useIsMobile";
+import PageSkeleton from "../components/PageSkeleton";
+import { isPositiveNumber, normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
+import { getErrorMessage, loadDraft, saveDraft, clearDraft } from "../lib/feedback";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -80,6 +83,8 @@ export default function Goals({ categories }) {
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [period, setPeriod]   = useState(() => {
     const n = new Date();
     return {
@@ -88,17 +93,42 @@ export default function Goals({ categories }) {
     };
   });
 
-  const load = async () => setGoals(await getGoals(period));
+  useEffect(() => {
+    const draft = loadDraft("finvolt:goals-draft", null);
+    if (draft) {
+      setForm(draft.form || emptyForm);
+      setEditing(draft.editing || null);
+      setShowForm(Boolean(draft.showForm));
+    }
+  }, []);
+
+  useEffect(() => {
+    saveDraft("finvolt:goals-draft", { form, editing, showForm });
+  }, [form, editing, showForm]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setGoals(await getGoals(period));
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao carregar metas"));
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { load(); }, [period]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.label || !form.amount) return toast.error("Label e valor são obrigatórios");
-    if (form.kind === "category_limit" && !form.category_id) return toast.error("Selecione uma categoria");
+    const label = normalizeText(form.label);
+    if (!label) return toast.error(VALIDATION_MESSAGES.invalidName);
+    if (!isPositiveNumber(form.amount)) return toast.error(VALIDATION_MESSAGES.invalidAmount);
+    if (form.kind === "category_limit" && !form.category_id) return toast.error(VALIDATION_MESSAGES.invalidCategory);
+    setSaving(true);
     try {
       const data = {
-        kind: form.kind, label: form.label,
+        kind: form.kind, label,
         amount: parseFloat(form.amount),
         category_id: form.category_id ? parseInt(form.category_id) : null,
       };
@@ -112,9 +142,12 @@ export default function Goals({ categories }) {
       }
       setForm(emptyForm);
       setShowForm(false);
+      clearDraft("finvolt:goals-draft");
       load();
-    } catch {
-      toast.error("Erro ao salvar meta");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao salvar meta"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -132,8 +165,8 @@ export default function Goals({ categories }) {
       await deleteGoal(confirmModal.id);
       toast.success("Meta excluída");
       load();
-    } catch {
-      toast.error("Erro ao excluir meta");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao excluir meta"));
     } finally {
       setConfirmModal({ open: false, id: null });
     }
@@ -212,9 +245,9 @@ export default function Goals({ categories }) {
             )}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleSave}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-              {editing ? "Salvar" : "Adicionar"}
+            <button onClick={handleSave} disabled={saving}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
+              {saving ? "Salvando..." : editing ? "Salvar" : "Adicionar"}
             </button>
             {(editing || isMobile) && (
               <button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(false); }}
@@ -227,7 +260,9 @@ export default function Goals({ categories }) {
       )}
 
       {/* Lista de metas */}
-      {goals.length === 0 ? (
+      {loading ? (
+        <PageSkeleton rows={3} />
+      ) : goals.length === 0 ? (
         <div className="text-center text-gray-400 py-12 text-sm">Nenhuma meta cadastrada</div>
       ) : (
         <div className="space-y-5">

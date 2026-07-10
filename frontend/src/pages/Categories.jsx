@@ -3,6 +3,7 @@ import { createCategory, updateCategory, deleteCategory } from "../lib/api";
 import toast from "react-hot-toast";
 import ConfirmModal from "../components/ConfirmModal";
 import useIsMobile from "../hooks/useIsMobile";
+import { normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
 
 const TYPES = { expense: "Gasto", income: "Entrada", both: "Ambos" };
 const COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#8b5cf6","#ec4899","#94a3b8","#10b981"];
@@ -18,21 +19,31 @@ export default function Categories({ categories, onReload }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.name.trim()) return toast.error("Nome é obrigatório");
+    const name = normalizeText(form.name);
+    if (!name) return toast.error(VALIDATION_MESSAGES.invalidName);
+
+    const existing = categories.find((category) => {
+      if (editing && category.id === editing) return false;
+      return normalizeText(category.name).toLowerCase() === name.toLowerCase();
+    });
+
+    if (existing) return toast.error(VALIDATION_MESSAGES.duplicateCategory);
+
     try {
       if (editing) {
-        await updateCategory(editing, form);
+        await updateCategory(editing, { ...form, name });
         toast.success("Categoria atualizada");
         setEditing(null);
       } else {
-        await createCategory(form);
+        await createCategory({ ...form, name });
         toast.success("Categoria criada");
       }
       setForm(emptyForm);
       setShowForm(false);
       onReload();
-    } catch {
-      toast.error("Erro ao salvar categoria");
+    } catch (error) {
+      const message = error?.response?.data?.error || "Erro ao salvar categoria";
+      toast.error(message);
     }
   };
 

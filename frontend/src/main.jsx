@@ -6,6 +6,8 @@ import './index.css'
 import App from './App.jsx'
 import ConfirmEmail from './pages/ConfirmEmail.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
+import Terms from './pages/Terms.jsx'
+import Privacy from './pages/Privacy.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -15,6 +17,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<App />} />
         <Route path="/confirm" element={<ConfirmEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/termos" element={<Terms />} />
+        <Route path="/privacidade" element={<Privacy />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

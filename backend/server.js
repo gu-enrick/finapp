@@ -51,7 +51,7 @@ const wrap = (fn) => async (req, res, next) => {
       const details = (e.errors || e.issues || []).map(x => `${x.path.join(".")}: ${x.message}`);
       return err(res, 400, "Dados inválidos", details);
     }
-    if (e.code === "23505") return err(res, 400, "Registro duplicado");
+    if (e.code === "23505") return err(res, 400, "Categoria já existe");
     if (e.code === "23503") return err(res, 400, "Referência inválida");
     console.error("\x1b[31m[ERRO]\x1b[0m", e.message);
     err(res, 500, "Erro interno do servidor");
@@ -61,7 +61,7 @@ const wrap = (fn) => async (req, res, next) => {
 // ─── SCHEMAS ──────────────────────────────────────────────────
 
 const categorySchema = z.object({
-  name:  z.string().min(1).max(50),
+  name:  z.string().trim().min(1).max(50),
   type:  z.enum(["expense", "income", "both"]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().default("#6366f1"),
 });

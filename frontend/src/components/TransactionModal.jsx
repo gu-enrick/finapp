@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getAllCategories } from "../lib/api";
+import { isPositiveNumber, isValidDateString, normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
 
 const getLocalToday = () => {
   const d = new Date();
@@ -54,8 +55,10 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
   const shift = (unit, amount) => set("date", shiftDate(form.date, unit, amount));
 
   const handleSubmit = () => {
-    if (!form.amount || !form.date) return toast.error("Valor e data são obrigatórios");
-    onSave({ ...form, amount: parseFloat(form.amount), category_id: form.category_id || null });
+    const description = normalizeText(form.description);
+    if (!isPositiveNumber(form.amount)) return toast.error(VALIDATION_MESSAGES.invalidAmount);
+    if (!isValidDateString(form.date)) return toast.error(VALIDATION_MESSAGES.invalidDate);
+    onSave({ ...form, description, amount: parseFloat(form.amount), category_id: form.category_id || null });
   };
 
   const sourceCategories = allCategories.length > 0 ? allCategories : categories;

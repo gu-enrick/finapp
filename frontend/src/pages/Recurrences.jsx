@@ -5,6 +5,9 @@ import ConfirmModal from "../components/ConfirmModal";
 import RecurrenceModal from "../components/RecurrenceModal";
 import useIsMobile from "../hooks/useIsMobile";
 import GenerateModal from "../components/GenerateModal";
+import PageSkeleton from "../components/PageSkeleton";
+import { isPositiveNumber, isValidDateString, normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
+import { getErrorMessage, loadDraft, saveDraft, clearDraft } from "../lib/feedback";
 
 const fmt = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const FREQ = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual" };
@@ -19,26 +22,53 @@ export default function Recurrences({ categories }) {
   const [editModal, setEditModal]     = useState({ open: false, initial: null });
   const [showForm, setShowForm]       = useState(false);
   const [generateModal, setGenerateModal] = useState({ open: false, recurrence: null });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const load = async () => setRecurrences(await getRecurrences());
+  useEffect(() => {
+    const draft = loadDraft("finvolt:recurrences-draft", null);
+    if (draft) setForm(draft || emptyForm);
+  }, []);
+
+  useEffect(() => {
+    saveDraft("finvolt:recurrences-draft", form);
+  }, [form]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setRecurrences(await getRecurrences());
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao carregar recorrências"));
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => { load(); }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.amount || !form.start_date) return toast.error("Valor e data são obrigatórios");
+    const description = normalizeText(form.description);
+    if (!isPositiveNumber(form.amount)) return toast.error(VALIDATION_MESSAGES.invalidAmount);
+    if (!isValidDateString(form.start_date)) return toast.error(VALIDATION_MESSAGES.invalidDate);
+    setSaving(true);
     try {
       await createRecurrence({
         ...form,
+        description,
         amount: parseFloat(form.amount),
         category_id: form.category_id ? parseInt(form.category_id) : null,
       });
       toast.success("Recorrência criada");
       setForm(emptyForm);
+      clearDraft("finvolt:recurrences-draft");
       setShowForm(false);
       load();
-    } catch {
-      toast.error("Erro ao criar recorrência");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao criar recorrência"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -48,8 +78,8 @@ export default function Recurrences({ categories }) {
       toast.success("Recorrência atualizada");
       setEditModal({ open: false, initial: null });
       load();
-    } catch {
-      toast.error("Erro ao atualizar recorrência");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao atualizar recorrência"));
     }
   };
 
@@ -60,8 +90,8 @@ export default function Recurrences({ categories }) {
       await deleteRecurrence(confirmModal.id);
       toast.success("Recorrência excluída");
       load();
-    } catch {
-      toast.error("Erro ao excluir recorrência");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao excluir recorrência"));
     } finally {
       setConfirmModal({ open: false, id: null });
     }
@@ -140,9 +170,9 @@ export default function Recurrences({ categories }) {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSave}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-              Adicionar
+            <button onClick={handleSave} disabled={saving}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60">
+              {saving ? "Salvando..." : "Adicionar"}
             </button>
             {isMobile && (
               <button onClick={() => setShowForm(false)}
@@ -157,7 +187,9 @@ export default function Recurrences({ categories }) {
       {/* ─── MOBILE: cards ─── */}
       {isMobile ? (
         <div className="space-y-2">
-          {recurrences.length === 0 ? (
+          {loading ? (
+            <PageSkeleton rows={3} />
+          ) : recurrences.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
               Nenhuma recorrência cadastrada
             </div>
@@ -201,7 +233,9 @@ export default function Recurrences({ categories }) {
       ) : (
         /* ─── DESKTOP: tabela ─── */
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden overflow-x-auto">
-          {recurrences.length === 0 ? (
+          {loading ? (
+            <PageSkeleton rows={4} />
+          ) : recurrences.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">Nenhuma recorrência cadastrada</div>
           ) : (
             <table className="w-full text-sm min-w-[600px]">

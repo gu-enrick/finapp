@@ -1,5 +1,5 @@
 import { useState } from "react";
-import supabase from "../lib/supabase";
+import supabase, { getResetPasswordRedirect } from "../lib/supabase";
 
 export default function Login({ onLogin }) {
   const [mode, setMode]         = useState("login"); // "login" | "register" | "forgot"
@@ -33,19 +33,34 @@ export default function Login({ onLogin }) {
 
       } else if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: getResetPasswordRedirect(),
         });
         if (error) throw error;
         setMessage("Link de recuperação enviado. Verifique seu e-mail.");
       }
     } catch (err) {
+      const rawMessage = err?.message || "";
+      const errorCode = err?.status || err?.code || "";
+
       const messages = {
         "Invalid login credentials":          "E-mail ou senha incorretos.",
         "Email not confirmed":                 "Confirme seu e-mail antes de entrar.",
         "User already registered":             "Este e-mail já está cadastrado.",
         "Password should be at least 6 characters": "A senha precisa ter pelo menos 6 caracteres.",
       };
-      setError(messages[err.message] || err.message);
+
+      const fallbackMessage =
+        mode === "forgot" && (errorCode === "user_not_found" || rawMessage.includes("user_not_found") || rawMessage.includes("User not found"))
+          ? "Esse e-mail não está cadastrado neste app. Tente criar uma conta ou usar o mesmo método de login usado antes."
+          : rawMessage.includes("Invalid login credentials")
+            ? "E-mail ou senha incorretos."
+            : rawMessage.includes("Email not confirmed")
+              ? "Confirme seu e-mail antes de entrar."
+              : rawMessage.includes("For security purposes")
+                ? "Não foi possível completar essa ação por segurança. Tente novamente em alguns instantes."
+                : messages[rawMessage] || rawMessage || "Não foi possível concluir a operação. Tente novamente.";
+
+      setError(fallbackMessage);
     } finally {
       setLoading(false);
     }
@@ -60,26 +75,6 @@ export default function Login({ onLogin }) {
     if (error) setError("Erro ao conectar com Google. Tente novamente.");
   };
 
-  const handleDemo = async () => {
-    setError(null);
-    setMessage(null);
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: "demo@finapp.com",
-        password: "$BN+nT!PL!Rua67",
-      });
-
-      if (error) throw error;
-      onLogin(data.user);
-    } catch (err) {
-      setError("Erro ao entrar no modo demo.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const changeMode = (newMode) => {
     setMode(newMode);
     setError(null);
@@ -92,7 +87,7 @@ export default function Login({ onLogin }) {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-3xl tracking-tight">finapp</span>
+          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-3xl tracking-tight">FinVolt</span>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
             {mode === "login"    && "Bem-vindo de volta"}
             {mode === "register" && "Crie sua conta"}
@@ -196,9 +191,9 @@ export default function Login({ onLogin }) {
 
         {/* Demo */}
         <p className="text-center mt-3">
-          <button type="button" onClick={handleDemo} disabled={loading}
-            className="text-xs text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 underline disabled:opacity-50">
-            {loading ? "Aguarde..." : "Continuar como visitante (modo demo)"}
+          <button onClick={() => onLogin(null)}
+            className="text-xs text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 underline">
+            Continuar como visitante (modo demo)
           </button>
         </p>
       </div>
