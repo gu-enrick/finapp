@@ -96,12 +96,12 @@ export default function Profile({ user, onLogout }) {
       {!isDemo && (
         <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 space-y-3">
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200">Nome de exibição</h2>
-          <form onSubmit={handleUpdateName} className="flex gap-2">
+          <form onSubmit={handleUpdateName} className="space-y-2">
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               placeholder="Seu nome"
-              className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
             <button type="submit" disabled={loadingName}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 shrink-0">
+              className="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
               {loadingName ? "..." : "Salvar"}
             </button>
           </form>
