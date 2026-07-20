@@ -44,7 +44,7 @@ function StatCard({ label, value, sub, color = "text-gray-800 dark:text-gray-100
   );
 }
 
-function Projection() {
+function Projection({ rendered }) {
   const [months, setMonths] = useState([]);
   const [monthlyComparison, setMonthlyComparison] = useState([]);
 
@@ -98,6 +98,7 @@ function Projection() {
             <p className={`text-sm sm:text-base font-semibold ${avgBalance >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-red-500"}`}>{fmt(avgBalance)}</p>
           </div>
         </div>
+        {rendered && (
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} margin={{ left: -20, right: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -109,6 +110,7 @@ function Projection() {
             <Bar dataKey="Gastos"   fill="#ef4444" radius={[4,4,0,0]} opacity={0.85} />
           </BarChart>
         </ResponsiveContainer>
+        )}
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">Barras à direita são projeções baseadas na média histórica</p>
       </div>
 
@@ -139,6 +141,13 @@ export default function Reports() {
   const [carouselData, setCarouselData] = useState(null);
   const [prevData, setPrevData]         = useState(null);
   const [data, setData]                 = useState(null);
+  
+  // Delay de renderização dos gráficos — libera thread durante animação do swipe
+  const [rendered, setRendered] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setRendered(true), 200);
+    return () => clearTimeout(t);
+  }, []);
 
   const carouselRange = monthRange(offset);
 
@@ -278,8 +287,9 @@ export default function Reports() {
           {dailyData.length > 1 && dailyData.length <= 60 && (
             <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
               <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Movimentação diária</h2>
+              {rendered && (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={dailyData} margin={{ left: -20, right: 5 }}>
+                    <BarChart data={dailyData} margin={{ left: -20, right: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 9 }} interval={Math.floor(dailyData.length / 8)} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
@@ -287,8 +297,9 @@ export default function Reports() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Entradas" fill="#22c55e" radius={[2,2,0,0]} />
                   <Bar dataKey="Gastos"   fill="#ef4444" radius={[2,2,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
+                    </BarChart>
+                  </ResponsiveContainer>
+              )}
             </div>
           )}
 
@@ -296,6 +307,7 @@ export default function Reports() {
             {expenseByCategory.length > 0 && (
               <div className="bg-white dark:bg-gray-900 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-800">
                 <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Gastos por categoria</h2>
+                {rendered && (
                 <ResponsiveContainer width="100%" height={Math.max(220, expenseByCategory.length * 32)}>
                   <BarChart data={expenseByCategory} layout="vertical" margin={{ left: -10, right: 10 }}>
                     <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
@@ -306,11 +318,12 @@ export default function Reports() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </div>
             )}
           </div>
 
-          <Projection />
+          <Projection rendered={rendered} />
 
           {data.count === 0 && (
             <div className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">Nenhuma transação no período selecionado</div>

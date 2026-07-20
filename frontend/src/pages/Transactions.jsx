@@ -8,8 +8,19 @@ import PageSkeleton from "../components/PageSkeleton";
 import { getErrorMessage, loadDraft, saveDraft, clearDraft } from "../lib/feedback";
 
 const fmt = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const fmtDate = (d) => new Date(d).toLocaleDateString("pt-BR");
-const fmtDateShort = (d) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+
+// ==========================================
+// A MÁGICA DO FUSO HORÁRIO ACONTECE AQUI
+// ==========================================
+const parseLocalDate = (d) => {
+  if (!d) return new Date();
+  const dateString = typeof d === 'string' ? d.split('T')[0] : d;
+  return new Date(`${dateString}T12:00:00`);
+};
+
+const fmtDate = (d) => parseLocalDate(d).toLocaleDateString("pt-BR");
+const fmtDateShort = (d) => parseLocalDate(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+// ==========================================
 
 export default function Transactions({ categories, lastDate, onDateChange, triggerNew }) {
   const isMobile = useIsMobile();
@@ -77,14 +88,27 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
       if (modal.initial) {
         await updateTransaction(modal.initial.id, data);
         toast.success("Transação atualizada");
+        setTransactions(prev => prev.map(t =>
+          t.id === modal.initial.id ? { ...t, ...data } : t
+        ));
       } else {
-        await createTransaction(data);
+        const res = await createTransaction(data);
         toast.success("Transação salva");
+        const cat = categories.find(c => String(c.id) === String(data.category_id));
+        const newTx = {
+          ...data,
+          id: res.id,
+          is_confirmed: true,
+          category_name: cat?.name || null,
+          category_color: cat?.color || null,
+          created_at: new Date().toISOString(),
+        };
+        setTransactions(prev => [newTx, ...prev]);
+        setTotal(t => t + 1);
       }
       onDateChange(data.date);
       setModal({ open: false, initial: null });
       clearDraft("finvolt:transactions-draft");
-      load(1);
     } catch (error) {
       toast.error(getErrorMessage(error, "Erro ao salvar transação"));
     } finally {
@@ -96,9 +120,13 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
 
   const handleConfirmDelete = async () => {
     try {
-      await deleteTransaction(confirmModal.id);
+      const idToDelete = confirmModal.id;
+      await deleteTransaction(idToDelete);
       toast.success("Transação excluída");
-      load(1);
+      
+      setTransactions(prev => prev.filter(t => t.id !== idToDelete));
+      setTotal(t => Math.max(0, t - 1));
+      
     } catch (error) {
       toast.error(getErrorMessage(error, "Erro ao excluir transação"));
     } finally {
@@ -110,7 +138,12 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
     try {
       await confirmTransaction(id);
       toast.success("Transação confirmada");
-      load(1);
+      
+
+      setTransactions(prev => prev.map(t => 
+        t.id === id ? { ...t, is_confirmed: true } : t
+      ));
+      
     } catch (error) {
       toast.error(getErrorMessage(error, "Erro ao confirmar transação"));
     }
@@ -210,6 +243,7 @@ export default function Transactions({ categories, lastDate, onDateChange, trigg
           <select value={filters.category_id} onChange={e => setFilter("category_id", e.target.value)}
             className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 w-full">
             <option value="">Todas</option>
+            <option value="income">Entradas</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>

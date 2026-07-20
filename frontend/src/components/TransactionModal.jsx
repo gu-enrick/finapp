@@ -1,24 +1,24 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getAllCategories } from "../lib/api";
+import useIsMobile from "../hooks/useIsMobile";
 import { isPositiveNumber, isValidDateString, normalizeText, VALIDATION_MESSAGES } from "../lib/validation";
 
 const getLocalToday = () => {
   const d = new Date();
-  // Subtrai o fuso horário local para "enganar" o toISOString
   return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
 };
 
 function shiftDate(dateStr, unit, amount) {
-  const d = new Date(dateStr + "T00:00:00");
+  const d = new Date(dateStr.split('T')[0] + "T12:00:00");
   if (unit === "day")   d.setDate(d.getDate() + amount);
   if (unit === "month") d.setMonth(d.getMonth() + amount);
   if (unit === "year")  d.setFullYear(d.getFullYear() + amount);
   return d.toISOString().slice(0, 10);
 }
 
-
 export default function TransactionModal({ open, onClose, onSave, categories, initial, lastDate }) {
+  const isMobile = useIsMobile();
   const makeEmpty = () => ({ type: "expense", amount: "", description: "", category_id: "", date: lastDate || getLocalToday() });
   const [form, setForm] = useState(makeEmpty());
   const [allCategories, setAllCategories] = useState([]);
@@ -33,11 +33,10 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
     setForm(initial ? {
       ...initial,
       amount: String(initial.amount),
-      date: initial.date ? new Date(initial.date).toISOString().slice(0, 10) : makeEmpty().date,
+      date: initial.date ? initial.date.split("T")[0] : makeEmpty().date,
     } : makeEmpty());
   }, [initial, open, lastDate]);
 
-  
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -48,7 +47,6 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
     return () => window.removeEventListener("keydown", handler);
   }, [open, form]); 
 
-  
   if (!open) return null;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -84,6 +82,7 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Valor (R$)</label>
             <input type="number" step="0.01" min="0" value={form.amount} onChange={e => set("amount", e.target.value)}
+              autoFocus={!isMobile}
               className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="0,00" />
           </div>
 
@@ -93,7 +92,8 @@ export default function TransactionModal({ open, onClose, onSave, categories, in
             <div className="flex items-center gap-2 flex-wrap">
               <input type="date" value={form.date} onChange={e => set("date", e.target.value)}
                 className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-              <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(form.date + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+              {/* AJUSTE 3: Meio-dia para renderizar a prévia da data */}
+              <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(form.date.split('T')[0] + "T12:00:00").toLocaleDateString("pt-BR")}</span>
             </div>
             <div className="flex gap-1.5 mt-2 flex-wrap">
               {[
