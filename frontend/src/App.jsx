@@ -510,14 +510,14 @@ export default function App() {
         <div className="flex-1 min-h-0 relative w-full overflow-hidden">
           <div
             style={{
-              position: "absolute", // <-- A MÁGICA TÁ AQUI
+              position: "absolute",
               top: 0,
               left: 0,
               right: 0,
-              bottom: 0, // <-- PREGA O TRILHO NO PAI
-              display: "flex",
+              bottom: 0,
+              display: MOBILE_PRIMARY.includes(page) ? "flex" : "none",
               width: `${MOBILE_PRIMARY.length * 100}%`,
-              transform: `translateX(-${(MOBILE_PRIMARY.indexOf(page) * 100) / MOBILE_PRIMARY.length}%)`,
+              transform: `translateX(-${(Math.max(0, MOBILE_PRIMARY.indexOf(page)) * 100) / MOBILE_PRIMARY.length}%)`,
               transition: "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
               willChange: "transform",
             }}
@@ -554,6 +554,20 @@ export default function App() {
               </div>
             ))}
           </div>
+
+          {MOBILE_MORE.includes(page) && (
+            <div className="absolute inset-0 h-full overflow-y-auto px-4 pt-4 pb-24 bg-gray-50 dark:bg-gray-950 z-10">
+              {page === "recurrences" && (
+                <Recurrences categories={categories} />
+              )}
+              {page === "categories" && (
+                <Categories categories={categories} onReload={loadCategories} />
+              )}
+              {page === "profile" && (
+                <Profile user={user} onLogout={() => setUser(null)} />
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-6">
