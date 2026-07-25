@@ -153,7 +153,7 @@ function AuthScreen({ onLogin }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-50 dark:bg-gray-950 transition-colors flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <span className="font-bold text-indigo-600 dark:text-indigo-400 text-3xl tracking-tight">
