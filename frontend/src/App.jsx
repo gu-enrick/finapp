@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { getCategories } from "./lib/api";
+import { createDefaultCategories } from "./lib/createDefaultCategories";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Reports from "./pages/Reports";
@@ -10,6 +12,7 @@ import Goals from "./pages/Goals";
 import useIsMobile from "./hooks/useIsMobile";
 import Profile from "./pages/Profile";
 import ConsentScreen from "./pages/ConsentScreen";
+import OnboardingModal from "./components/OnboardingModal";
 import supabase, { getResetPasswordRedirect } from "./lib/supabase";
 import {
   isValidEmail,
@@ -29,7 +32,7 @@ const NAV = [
 
 const MOBILE_PRIMARY = ["dashboard", "transactions", "reports", "goals"];
 const MOBILE_MORE = ["recurrences", "categories", "profile"];
-const ALL_SWIPEABLE = [...MOBILE_PRIMARY]; // só as 4 principais têm swipe
+const ALL_SWIPEABLE = [...MOBILE_PRIMARY];
 
 function AuthScreen({ onLogin }) {
   const [mode, setMode] = useState("login");
@@ -323,7 +326,12 @@ export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = searchParams.get("p") || "dashboard";
   const prevPageRef = useRef(0);
+
+  const isAppInitialized = useRef(false);
+
   const [categories, setCategories] = useState([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   const [lastDate, setLastDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -341,10 +349,40 @@ export default function App() {
     setSearchParams({ p: id });
   };
 
-  const loadCategories = async () => setCategories(await getCategories());
+  const loadCategories = async () => {
+    const cats = await getCategories();
+    setCategories(cats);
+    return cats;
+  };
+
   useEffect(() => {
-    loadCategories();
-  }, []);
+    if (user && !isAppInitialized.current) {
+      isAppInitialized.current = true;
+
+      const initializeApp = async () => {
+        try {
+          const isDemo = user?.email === "demo@finapp.com";
+          const hasOnboarded = user?.user_metadata?.onboarded;
+
+          if (isDemo) {
+            setShowOnboarding(true);
+            await loadCategories();
+          } else if (!hasOnboarded) {
+            setShowOnboarding(true);
+            await createDefaultCategories();
+            await supabase.auth.updateUser({ data: { onboarded: true } });
+            await loadCategories();
+          } else {
+            await loadCategories();
+          }
+        } catch (error) {
+          console.error("Erro na inicialização do app:", error);
+        }
+      };
+
+      initializeApp();
+    }
+  }, [user]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -644,6 +682,12 @@ export default function App() {
           1-6 navegar · N nova transação · D tema
         </div>
       )}
+
+      {showOnboarding &&
+        createPortal(
+          <OnboardingModal onClose={() => setShowOnboarding(false)} />,
+          document.body,
+        )}
     </div>
   );
 }
