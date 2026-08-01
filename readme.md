@@ -2,7 +2,7 @@
 
 > Controle financeiro pessoal — registre suas transações com agilidade.
 
-Aplicação web completa de finanças pessoais com autenticação, multiusuário, relatórios e modo mobile. Desenvolvida do zero com stack moderna e deploy em produção.
+Aplicação web completa de finanças pessoais com autenticação, multiusuário, relatórios e suporte mobile. Desenvolvida do zero com stack moderna e deploy em produção.
 
 **Demo:** [FinVolt](https://meufinvolt.vercel.app) — clique em "Continuar como visitante" para explorar sem cadastro.
 
@@ -12,51 +12,65 @@ Aplicação web completa de finanças pessoais com autenticação, multiusuário
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Frontend | React + Vite + Tailwind CSS + Recharts |
-| Backend | Node.js + Express + Zod + Helmet |
+| Frontend | React 19 + Vite + Tailwind CSS v4 + Recharts + Framer Motion |
+| Backend | Node.js + Express + Zod + Helmet + express-rate-limit |
 | Banco | PostgreSQL via Supabase |
 | Auth | Supabase Auth (e-mail/senha + Google OAuth) |
 | Email | Resend via SMTP |
 | Deploy | Vercel (frontend) + Render (backend) |
-| Testes | Jest + Supertest (46 testes) |
+| Testes | Jest + Supertest — 45 testes automatizados |
 
 ---
 
 ## Funcionalidades
 
-- **Transações** — CRUD completo com filtros, busca, ordenação e paginação
+- **Autenticação** — e-mail/senha, Google OAuth, confirmação de e-mail, recuperação de senha
+- **Onboarding** — modal de boas-vindas com tour das funcionalidades e criação automática de categorias padrão no primeiro acesso
+- **Transações** — CRUD completo com filtros, busca, ordenação, paginação e atualização otimista
 - **Recorrências** — geração de ocorrências previstas com confirmação manual e edição com propagação
 - **Relatórios** — métricas mensais, comparativo histórico, projeção de 3 meses e gráficos
 - **Metas** — economia, limite por categoria e saldo mínimo com barra de progresso
-- **Categorias** — cores personalizadas e soft delete (preserva histórico)
+- **Categorias** — cores personalizadas e soft delete (preserva histórico de transações)
 - **Exportação CSV** — com encoding UTF-8 para compatibilidade com Excel
-- **Autenticação** — e-mail/senha, Google OAuth, confirmação de e-mail e recuperação de senha
-- **Multiusuário** — cada usuário acessa apenas seus próprios dados (RLS + user_id)
-- **Mobile** — bottom navigation, menu "Mais", cards de transação, totalmente responsivo
+- **Multiusuário** — cada usuário acessa apenas seus próprios dados (JWT + RLS no Supabase)
+- **Mobile** — navegação por swipe com translateX (GPU-accelerated), bottom navigation, menu "Mais", cards responsivos
 - **Tema escuro/claro** com persistência
 - **Atalhos de teclado** — 1-6 navegar, N nova transação, D alternar tema
+- **Termos de Uso e Política de Privacidade** — tela de consentimento LGPD no primeiro acesso
+
+---
+
+## Segurança
+
+- Autenticação JWT via Supabase Auth em todas as rotas do backend
+- Row Level Security (RLS) no Supabase — isolamento de dados por usuário no banco
+- Validação de inputs com Zod em todas as rotas
+- Helmet.js para proteção de headers HTTP
+- Rate limiting: 500 requisições por IP a cada 15 minutos
+- CORS restrito aos domínios autorizados
+- HTTPS em todas as conexões (Vercel + Render)
 
 ---
 
 ## Arquitetura
 
 ```
-finapp/
+finvolt/
 ├── backend/
 │   ├── server.js       # API REST com requireAuth em todas as rotas
 │   ├── database.js     # Conexão PostgreSQL + init das tabelas
 │   ├── auth.js         # Middleware JWT via Supabase
 │   ├── seed.js         # Dados demo (12 meses, perfil brasileiro)
-│   └── __tests__/      # 46 testes Jest + Supertest
+│   └── __tests__/      # 45 testes Jest + Supertest
 └── frontend/
     └── src/
         ├── pages/      # Dashboard, Transactions, Reports, Goals,
         │               # Recurrences, Categories, Profile, Login,
         │               # ConfirmEmail, ResetPassword, Terms, Privacy
         ├── components/ # TransactionModal, RecurrenceModal,
-        │               # GenerateModal, ConfirmModal
+        │               # GenerateModal, ConfirmModal, OnboardingModal
         ├── hooks/      # useIsMobile
-        └── lib/        # api.js (axios + JWT), supabase.js
+        └── lib/        # api.js, supabase.js, createDefaultCategories.js
 ```
 
 ---
@@ -65,7 +79,7 @@ finapp/
 
 ### Pré-requisitos
 - Node.js 18+
-- PostgreSQL local ou conta no Supabase
+- PostgreSQL local
 - Conta no Supabase (para autenticação)
 
 ### Backend
@@ -123,24 +137,14 @@ Requer banco `finapp_test` local e `.env.test` configurado.
 
 ---
 
-## Segurança
-
-- Autenticação JWT via Supabase Auth em todas as rotas
-- Row Level Security (RLS) no banco — cada usuário acessa apenas seus dados
-- Validação de inputs com Zod no backend
-- Helmet.js para proteção de headers HTTP
-- Rate limiting: 500 requisições por IP a cada 15 minutos
-- HTTPS em todas as conexões (Vercel + Render)
-
----
-
 ## Roadmap
 
-- [ ] Google OAuth (configurado, aguardando propagação do nome no Google Cloud)
+- [ ] Refatoração modular — `App.jsx` e `server.js` como orquestradores
 - [ ] Workspace compartilhado (casal/família)
 - [ ] App Android via Capacitor
 - [ ] Importação de extrato CSV/OFX
-- [ ] Plano pago com Stripe
+- [ ] Domínio próprio 
+- [ ] Plano pago com Stripe 
 
 ---
 
@@ -150,4 +154,4 @@ MIT com Commons Clause — uso pessoal e educacional livre. Uso comercial não p
 
 ---
 
-Desenvolvido por [Gustavo Enrick](https://github.com/gu-enrick)
+Desenvolvido por [Gustavo Enrick](https://github.com/gu-enrick) · v1.1.0 — Moon
